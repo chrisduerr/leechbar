@@ -3,6 +3,7 @@ name = "leechbar"
 version = "0.1.0"
 authors = ["Christian Dürr <contact@christianduerr.com>"]
 readme = "README.md"
+license = "GPL-3.0"
 keywords = ["xorg", "x11", "panel", "bar", "dock"]
 categories = ["gui"]
 description = "A library for building your own bar on top of XCB"
