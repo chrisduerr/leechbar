@@ -1,0 +1,15 @@
+[package]
+name = "leechbar"
+version = "0.1.0"
+authors = ["Christian Dürr <contact@christianduerr.com>"]
+readme = "README.md"
+keywords = ["xorg", "x11", "panel", "bar", "dock"]
+categories = ["gui"]
+description = "A library for building your own bar on top of XCB"
+repository = "https://github.com/chrisduerr/leechbar"
+documentation = "https://docs.rs/leechbar"
+
+[dependencies]
+xcb = { version = "0.8.1", features = ["randr", "thread"] }
+error-chain = "0.11.0"
+image = "*"
