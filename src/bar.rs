@@ -107,7 +107,17 @@ impl BarComponent {
     // This should be called before updating it
     fn clear(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32, bg: u32) -> Result<()> {
         let (w, h, x) = (self.width, self.height, self.x);
-        reset_area(conn, window, gc, bg, x, w, h)?;
+        if bg != 0 {
+            // Copy image if background exists
+            xcb::copy_area_checked(conn, bg, window, gc, x, 0, x, 0, w, h)
+                .request_check()
+                .map_err(|e| format!("Unable to clear component: {}", e))?;
+        } else {
+            // Clear rectangle if there is no background image
+            xcb::clear_area_checked(conn, false, window, x, 0, w, h)
+                .request_check()
+                .map_err(|e| format!("Unable to clear component: {}", e))?;
+        }
 
         Ok(())
     }
@@ -184,9 +194,12 @@ impl Bar {
                 if let Some(event) = conn.wait_for_event() {
                     let r = event.response_type();
                     if r == xcb::EXPOSE {
-                        // Redraw background
-                        reset_area(&conn, window, gc, bg, 0, geometry.width, geometry.height)
-                            .unwrap();
+                        // Redraw background if it's an image
+                        if bg != 0 {
+                            let (w, h) = (geometry.width, geometry.height);
+                            xcb::copy_area_checked(&conn, bg, window, gc, 0, 0, 0, 0, w, h)
+                                .request_check().unwrap();
+                        };
 
                         // Redraw components
                         let components = components.lock().unwrap();
@@ -466,31 +479,6 @@ impl Bar {
 
         Ok(())
     }
-}
-
-// Reset a rectangle to the default background
-// If no background image is set, background color is used
-fn reset_area(
-    conn: &Arc<xcb::Connection>,
-    window: u32,
-    gc: u32,
-    bg: u32,
-    x: i16,
-    w: u16,
-    h: u16,
-) -> Result<()> {
-    if bg != 0 {
-        // Copy image if background exists
-        xcb::copy_area_checked(conn, bg, window, gc, x, 0, x, 0, w, h)
-            .request_check()
-            .map_err(|e| format!("Unable to clear component: {}", e))?;
-    } else {
-        // Clear rectangle if there is no background image
-        xcb::clear_area_checked(conn, false, window, x, 0, w, h)
-            .request_check()
-            .map_err(|e| format!("Unable to clear component: {}", e))?;
-    }
-    Ok(())
 }
 
 // Convert an image to a raw Vector that is cropped to a specific size
