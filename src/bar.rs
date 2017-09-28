@@ -1,8 +1,9 @@
 use image::{DynamicImage, GenericImage, Pixel};
+use std::sync::{Arc, Mutex};
+use component::Component;
 use builder::BarBuilder;
 use xcb::{self, randr};
-use std::sync::Arc;
-use std::cmp;
+use std::thread;
 use error::*;
 
 // Utility macro for setting window properties
@@ -40,6 +41,7 @@ macro_rules! set_prop {
 }
 
 // Geometry of the bar
+#[derive(Clone, Copy)]
 struct Geometry {
     x: i16,
     y: i16,
@@ -48,6 +50,7 @@ struct Geometry {
 }
 
 impl Geometry {
+    // Helper for creating a geometry without struct syntax
     fn new(x: i16, y: i16, width: u16, height: u16) -> Self {
         Geometry {
             x,
@@ -58,14 +61,71 @@ impl Geometry {
     }
 }
 
+// A component currently stored in the bar
+struct BarComponent {
+    pixmap: u32,
+    width: u16,
+    height: u16,
+    x: i16,
+    id: u32,
+}
+
+impl BarComponent {
+    // Creates a new component
+    fn new(id: u32, conn: &Arc<xcb::Connection>) -> Self {
+        let pixmap = conn.generate_id();
+        BarComponent {
+            pixmap,
+            width: 0,
+            height: 0,
+            x: 0,
+            id,
+        }
+    }
+
+    // Update a component cached by the bar
+    fn update(&mut self, x: i16, width: u16, height: u16) {
+        self.height = height;
+        self.width = width;
+        self.x = x;
+    }
+
+    // Redraw a component
+    // Copies the pixmap to the window
+    // TODO: Handle racing condition
+    fn redraw(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32, x: i16) -> Result<()> {
+        let w = self.width;
+        let h = self.height;
+        xcb::copy_area_checked(conn, self.pixmap, window, gc, 0, 0, x, 0, w, h)
+            .request_check()
+            .map_err(|e| format!("Unable to redraw component: {}", e))?;
+
+        Ok(())
+    }
+
+    // Clear the area of this component
+    // This should be called before updating it
+    fn clear(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32, bg: u32) -> Result<()> {
+        let (w, h, x) = (self.width, self.height, self.x);
+        reset_area(conn, window, gc, bg, x, w, h)?;
+
+        Ok(())
+    }
+}
+
+// The main bar struct for keeping state
 pub struct Bar {
     conn: Arc<xcb::Connection>,
     geometry: Geometry,
+    depth: u8,
     window: u32,
     gcontext: u32,
     background_pixmap: u32,
+    components: Arc<Mutex<Vec<BarComponent>>>,
 }
 
+// TODO: Add clone to bar so the let (.,.,.) = (self.,self.,self.) stuff can be simplified
+// TODO: This should clone conn and components and copy everything else
 impl Bar {
     // Create a new bar
     pub fn new(builder: BarBuilder) -> Result<Self> {
@@ -76,9 +136,11 @@ impl Bar {
         let mut bar = Bar {
             conn,
             geometry: Geometry::new(0, 0, 0, 0),
+            depth: 0,
             window: 0,
             gcontext: 0,
             background_pixmap: 0,
+            components: Arc::new(Mutex::new(Vec::new())),
         };
 
         // Get geometry of the specified display
@@ -89,6 +151,15 @@ impl Bar {
         let name = builder.name.as_bytes();
         bar.create_window(builder.background_color, name)?;
 
+        // Get depth of root
+        bar.depth = bar.screen()?.root_depth();
+
+        // Create a graphics context
+        bar.gcontext = bar.conn.generate_id();
+        xcb::create_gc_checked(&bar.conn, bar.gcontext, bar.window, &[])
+            .request_check()
+            .unwrap();
+
         // Create background pixmap
         if let Some(background_image) = builder.background_image {
             bar.create_background_pixmap(background_image)?;
@@ -98,13 +169,136 @@ impl Bar {
     }
 
     // Start the event loop
-    // This is blocking
     pub fn start_event_loop(&self) {
-        loop {
-            self.conn.wait_for_event();
-        }
+        let conn = Arc::clone(&self.conn);
+        let components = Arc::clone(&self.components);
+        let (window, gc, bg, geometry) = (
+            self.window,
+            self.gcontext,
+            self.background_pixmap,
+            self.geometry,
+        );
+        thread::spawn(move || {
+            loop {
+                // self.conn.wait_for_event();
+                if let Some(event) = conn.wait_for_event() {
+                    let r = event.response_type();
+                    if r == xcb::EXPOSE {
+                        // Redraw background
+                        reset_area(&conn, window, gc, bg, 0, geometry.width, geometry.height)
+                            .unwrap();
+
+                        // Redraw components
+                        let components = components.lock().unwrap();
+                        for component in &*components {
+                            if component.width > 0 && component.height > 0 {
+                                component.redraw(&conn, window, gc, component.x).unwrap();
+                            }
+                        }
+                    } else {
+                        // TODO
+                    }
+                }
+            }
+        });
     }
 
+    // Handle drawing and updating a single element
+    // Starts a new thread
+    pub fn draw<T: 'static + Component + Send>(&mut self, mut component: T) {
+        // Permanent component id
+        let id = component.position().unique_id();
+
+        // Register the component
+        let bar_component = BarComponent::new(id, &self.conn);
+        let pixmap = bar_component.pixmap;
+        {
+            let mut components = self.components.lock().unwrap();
+            (*components).push(bar_component);
+        }
+
+        // Start bar thread
+        let conn = Arc::clone(&self.conn);
+        let components = Arc::clone(&self.components);
+        let (depth, window, gc, background) = (
+            self.depth,
+            self.window,
+            self.gcontext,
+            self.background_pixmap,
+        );
+        thread::spawn(move || {
+            loop {
+                // Get background
+                let image: Option<DynamicImage> = component.background();
+                if let Some(image) = image {
+                    // Calculate width and height
+                    let w = image.width() as u16;
+                    let h = image.height() as u16;
+
+                    // Convert image to raw pixels
+                    let data = convert_image(&image);
+
+                    // Prevents component from being redrawn while pixmap is freed
+                    // Lock components
+                    let mut components = components.lock().unwrap();
+
+                    // Free the old pixmap
+                    xcb::free_pixmap(&conn, pixmap);
+
+                    // Update pixmap
+                    xcb::create_pixmap_checked(&conn, depth, pixmap, window, w, h)
+                        .request_check()
+                        .map_err(|e| format!("Unable to create component pixmap: {}", e))
+                        .unwrap();
+
+                    // Put image
+                    xcb::put_image_checked(&conn, 2u8, pixmap, gc, w, h, 0, 0, 0, depth, &data)
+                        .request_check()
+                        .unwrap();
+
+                    // Get the X offset
+                    let mut x = xoffset_by_id(&(*components), id);
+
+                    // Get all components with the same position but highter id
+                    components.sort_by(|a, b| a.id.cmp(&b.id));
+                    let components = components
+                        .iter_mut()
+                        .filter(|c| c.id >= id && c.id % 3 == id % 3)
+                        .collect::<Vec<&mut BarComponent>>();
+
+                    // Remove all selected components from the bar
+                    for component in &components {
+                        component.clear(&conn, window, gc, background).unwrap();
+                    }
+
+                    // Redraw all selected components
+                    for component in components {
+                        // Old rectangle for clearing bar
+                        let (w, h) = if component.id == id {
+                            (w, h)
+                        } else {
+                            (component.width, component.height)
+                        };
+
+                        // Update the component
+                        component.update(x, w, h);
+
+                        // Redraw the component
+                        if w > 0 && h > 0 {
+                            component.redraw(&conn, window, gc, x).unwrap();
+                            x += w as i16;
+                        }
+                    }
+                }
+
+                // Sleep
+                thread::sleep(component.timeout());
+            }
+        });
+    }
+
+    // Used to get the screen of the connection
+    // TODO: Cache this instead of getting it from conn every time
     fn screen(&self) -> Result<xcb::Screen> {
         self.conn
             .get_setup()
@@ -135,8 +329,8 @@ impl Bar {
                 (xcb::CW_BACK_PIXEL, background_color),
                 (
                     xcb::CW_EVENT_MASK,
-                    xcb::EVENT_MASK_EXPOSURE | xcb::EVENT_MASK_KEY_PRESS |
-                        xcb::EVENT_MASK_ENTER_WINDOW,
+                    xcb::EVENT_MASK_EXPOSURE | xcb::EVENT_MASK_KEY_PRESS
+                        | xcb::EVENT_MASK_ENTER_WINDOW,
                 ),
                 (xcb::CW_OVERRIDE_REDIRECT, 0),
             ],
@@ -241,69 +435,67 @@ impl Bar {
 
     // Get the background pixmap with the image filled in
     fn create_background_pixmap(&mut self, background: DynamicImage) -> Result<()> {
-        // Get depth of root
-        let depth = self.screen()?.root_depth();
+        // Bar's gcontext and depth
+        let depth = self.depth;
+        let gc = self.gcontext;
 
         // Make sure copied area is not bigger than image size
-        let width = cmp::min(self.geometry.width, background.width() as u16);
-        let height = cmp::min(self.geometry.height, background.height() as u16);
+        let h = background.height() as u16;
+        let w = background.width() as u16;
 
         // Create pixmap
         let pixmap = self.conn.generate_id();
-        xcb::create_pixmap_checked(&self.conn, depth, pixmap, self.window, width, height)
-            .request_check()
-            .unwrap();
-
-        // Create a graphics context
-        let gcontext = self.conn.generate_id();
-        xcb::create_gc_checked(&self.conn, gcontext, self.window, &[])
+        xcb::create_pixmap_checked(&self.conn, self.depth, pixmap, self.window, w, h)
             .request_check()
             .unwrap();
 
         // Convert background image to raw pixel data
-        let data = convert_image(background, u32::from(width), u32::from(height));
+        let data = convert_image(&background);
 
         // Put image data into pixmap
-        xcb::put_image_checked(
-            &self.conn,
-            xcb::IMAGE_FORMAT_Z_PIXMAP as u8,
-            pixmap,
-            gcontext,
-            width,
-            height,
-            0,
-            0,
-            0,
-            depth,
-            &data,
-        ).request_check()
+        xcb::put_image_checked(&self.conn, 2u8, pixmap, gc, w, h, 0, 0, 0, depth, &data)
+            .request_check()
             .unwrap();
 
         // Copy background image to window
-        xcb::copy_area_checked(
-            &self.conn,
-            pixmap,
-            self.window,
-            gcontext,
-            0,
-            0,
-            0,
-            0,
-            width,
-            height,
-        ).request_check()
+        xcb::copy_area_checked(&self.conn, pixmap, self.window, gc, 0, 0, 0, 0, w, h)
+            .request_check()
             .unwrap();
 
         self.background_pixmap = pixmap;
-        self.gcontext = gcontext;
 
         Ok(())
     }
 }
 
+// Reset a rectangle to the default background
+// If no background image is set, background color is used
+fn reset_area(
+    conn: &Arc<xcb::Connection>,
+    window: u32,
+    gc: u32,
+    bg: u32,
+    x: i16,
+    w: u16,
+    h: u16,
+) -> Result<()> {
+    if bg != 0 {
+        // Copy image if background exists
+        xcb::copy_area_checked(conn, bg, window, gc, x, 0, x, 0, w, h)
+            .request_check()
+            .map_err(|e| format!("Unable to clear component: {}", e))?;
+    } else {
+        // Clear rectangle if there is no background image
+        xcb::clear_area_checked(conn, false, window, x, 0, w, h)
+            .request_check()
+            .map_err(|e| format!("Unable to clear component: {}", e))?;
+    }
+    Ok(())
+}
+
 // Convert an image to a raw Vector that is cropped to a specific size
-fn convert_image(mut image: DynamicImage, width: u32, height: u32) -> Vec<u8> {
-    let mut image = image.crop(0, 0, width, height).to_rgba();
+fn convert_image(image: &DynamicImage) -> Vec<u8> {
+    let mut image = image.to_rgba();
 
     // Correct channels to fit xorg layout
     for pixel in image.pixels_mut() {
@@ -315,4 +507,13 @@ fn convert_image(mut image: DynamicImage, width: u32, height: u32) -> Vec<u8> {
     }
 
     image.into_raw()
+}
+
+// Component's X-Offset by id
+fn xoffset_by_id(components: &[BarComponent], id: u32) -> i16 {
+    components
+        .iter()
+        .filter(|c| c.id < id && c.id % 3 == id % 3)
+        .map(|c| c.width)
+        .sum::<u16>() as i16
 }

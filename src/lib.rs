@@ -6,6 +6,7 @@ extern crate image;
 extern crate xcb;
 
 pub mod error;
+pub mod component;
 mod builder;
 mod bar;
 
