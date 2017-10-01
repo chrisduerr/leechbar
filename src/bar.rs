@@ -123,6 +123,7 @@ impl BarComponent {
 }
 
 // The main bar struct for keeping state
+#[derive(Clone)]
 pub struct Bar {
     conn: Arc<xcb::Connection>,
     geometry: Geometry,
@@ -133,8 +134,6 @@ pub struct Bar {
     components: Arc<Mutex<Vec<BarComponent>>>,
 }
 
-// TODO: Add clone to bar so the let (.,.,.) = (self.,self.,self.) stuff can be simplified
-// TODO: This should clone conn and components and copy everything else
 impl Bar {
     // Create a new bar
     pub fn new(builder: BarBuilder) -> Result<Self> {
@@ -180,33 +179,27 @@ impl Bar {
 
     // Start the event loop
     pub fn start_event_loop(&self) {
-        let conn = Arc::clone(&self.conn);
-        let components = Arc::clone(&self.components);
-        let (window, gc, bg, geometry) = (
-            self.window,
-            self.gcontext,
-            self.background_pixmap,
-            self.geometry,
-        );
+        let bar = self.clone();
         thread::spawn(move || {
             loop {
                 // self.conn.wait_for_event();
-                if let Some(event) = conn.wait_for_event() {
+                if let Some(event) = bar.conn.wait_for_event() {
                     let r = event.response_type();
                     if r == xcb::EXPOSE {
                         // Redraw background if it's an image
+                        let (bg, gc, win) = (bar.background_pixmap, bar.gcontext, bar.window);
                         if bg != 0 {
-                            let (w, h) = (geometry.width, geometry.height);
-                            xcb::copy_area_checked(&conn, bg, window, gc, 0, 0, 0, 0, w, h)
+                            let (w, h) = (bar.geometry.width, bar.geometry.height);
+                            xcb::copy_area_checked(&bar.conn, bg, win, gc, 0, 0, 0, 0, w, h)
                                 .request_check()
                                 .unwrap();
                         };
 
                         // Redraw components
-                        let components = components.lock().unwrap();
+                        let components = bar.components.lock().unwrap();
                         for component in &*components {
                             if component.width > 0 && component.height > 0 {
-                                component.redraw(&conn, window, gc, component.x).unwrap();
+                                component.redraw(&bar.conn, win, gc, component.x).unwrap();
                             }
                         }
                     } else {
@@ -232,16 +225,9 @@ impl Bar {
         }
 
         // Start bar thread
-        let conn = Arc::clone(&self.conn);
-        let components = Arc::clone(&self.components);
-        let (depth, window, gc, background, bar_width) = (
-            self.depth,
-            self.window,
-            self.gcontext,
-            self.background_pixmap,
-            self.geometry.width,
-        );
+        let bar = self.clone();
         thread::spawn(move || {
+            let (conn, gc, depth, win) = (bar.conn, bar.gcontext, bar.depth, bar.window);
             loop {
                 // Get background
                 let image: Option<DynamicImage> = component.background();
@@ -255,13 +241,13 @@ impl Bar {
 
                     // Prevents component from being redrawn while pixmap is freed
                     // Lock components
-                    let mut components = components.lock().unwrap();
+                    let mut components = bar.components.lock().unwrap();
 
                     // Free the old pixmap
                     xcb::free_pixmap(&conn, pixmap);
 
                     // Update pixmap
-                    xcb::create_pixmap_checked(&conn, depth, pixmap, window, w, h)
+                    xcb::create_pixmap_checked(&conn, depth, pixmap, win, w, h)
                         .request_check()
                         .map_err(|e| format!("Unable to create component pixmap: {}", e))
                         .unwrap();
@@ -272,7 +258,7 @@ impl Bar {
                         .unwrap();
 
                     // Get the X offset of the first item that will be redrawn
-                    let mut x = xoffset_by_id(&(*components), id, w, bar_width);
+                    let mut x = xoffset_by_id(&(*components), id, w, bar.geometry.width);
 
                     // Get all components that need to be redrawn
                     components.sort_by(|a, b| a.id.cmp(&b.id));
@@ -283,7 +269,9 @@ impl Bar {
 
                     // Remove all selected components from the bar
                     for component in &components {
-                        component.clear(&conn, window, gc, background).unwrap();
+                        component
+                            .clear(&conn, win, gc, bar.background_pixmap)
+                            .unwrap();
                     }
 
                     // Redraw all selected components
@@ -300,7 +288,7 @@ impl Bar {
 
                         // Redraw the component
                         if w > 0 && h > 0 {
-                            component.redraw(&conn, window, gc, x).unwrap();
+                            component.redraw(&conn, win, gc, x).unwrap();
                             x += w as i16;
                         }
                     }
@@ -457,7 +445,7 @@ impl Bar {
 
         // Create pixmap
         let pixmap = self.conn.generate_id();
-        xcb::create_pixmap_checked(&self.conn, self.depth, pixmap, self.window, w, h)
+        xcb::create_pixmap_checked(&self.conn, depth, pixmap, self.window, w, h)
             .request_check()
             .unwrap();
 
