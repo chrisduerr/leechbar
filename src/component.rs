@@ -2,6 +2,7 @@ use std::time::Duration;
 use image::DynamicImage;
 
 // Alignment and ordinal of a component
+#[derive(Clone, Copy)]
 pub enum ComponentPosition {
     LEFT(u32),
     CENTER(u32),

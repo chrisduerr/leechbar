@@ -92,7 +92,6 @@ impl BarComponent {
 
     // Redraw a component
     // Copies the pixmap to the window
-    // TODO: Handle racing condition
     fn redraw(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32, x: i16) -> Result<()> {
         let w = self.width;
         let h = self.height;
@@ -161,14 +160,15 @@ impl Bar {
         let name = builder.name.as_bytes();
         bar.create_window(builder.background_color, name)?;
 
-        // Get depth of root
-        bar.depth = bar.screen()?.root_depth();
-
         // Create a graphics context
         bar.gcontext = bar.conn.generate_id();
         xcb::create_gc_checked(&bar.conn, bar.gcontext, bar.window, &[])
             .request_check()
             .unwrap();
+
+        // Get depth of root
+        // Don't move this, it's required for creating the bg pixmap
+        bar.depth = bar.screen()?.root_depth();
 
         // Create background pixmap
         if let Some(background_image) = builder.background_image {
@@ -198,7 +198,8 @@ impl Bar {
                         if bg != 0 {
                             let (w, h) = (geometry.width, geometry.height);
                             xcb::copy_area_checked(&conn, bg, window, gc, 0, 0, 0, 0, w, h)
-                                .request_check().unwrap();
+                                .request_check()
+                                .unwrap();
                         };
 
                         // Redraw components
@@ -233,11 +234,12 @@ impl Bar {
         // Start bar thread
         let conn = Arc::clone(&self.conn);
         let components = Arc::clone(&self.components);
-        let (depth, window, gc, background) = (
+        let (depth, window, gc, background, bar_width) = (
             self.depth,
             self.window,
             self.gcontext,
             self.background_pixmap,
+            self.geometry.width,
         );
         thread::spawn(move || {
             loop {
@@ -269,14 +271,14 @@ impl Bar {
                         .request_check()
                         .unwrap();
 
-                    // Get the X offset
-                    let mut x = xoffset_by_id(&(*components), id);
+                    // Get the X offset of the first item that will be redrawn
+                    let mut x = xoffset_by_id(&(*components), id, w, bar_width);
 
-                    // Get all components with the same position but highter id
+                    // Get all components that need to be redrawn
                     components.sort_by(|a, b| a.id.cmp(&b.id));
                     let components = components
                         .iter_mut()
-                        .filter(|c| c.id >= id && c.id % 3 == id % 3)
+                        .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
                         .collect::<Vec<&mut BarComponent>>();
 
                     // Remove all selected components from the bar
@@ -358,9 +360,6 @@ impl Bar {
 
         // Request the WM to manage our window.
         xcb::map_window(conn, window);
-
-        // Flush connection
-        conn.flush();
 
         self.window = window;
         Ok(())
@@ -498,10 +497,32 @@ fn convert_image(image: &DynamicImage) -> Vec<u8> {
 }
 
 // Component's X-Offset by id
-fn xoffset_by_id(components: &[BarComponent], id: u32) -> i16 {
-    components
-        .iter()
-        .filter(|c| c.id < id && c.id % 3 == id % 3)
-        .map(|c| c.width)
-        .sum::<u16>() as i16
+// If id is from center component, will return new X of the first component
+fn xoffset_by_id(components: &[BarComponent], id: u32, new_width: u16, bar_width: u16) -> i16 {
+    // Check if component is not left-aligned
+    if id % 3 != 0 {
+        // Filter unrelevant components
+        let components = components
+            .iter()
+            .filter(|c| c.id != id && c.id % 3 == id % 3);
+
+        // Get new width of all components
+        let mut width = components.map(|c| c.width).sum::<u16>() as f64;
+        width += new_width as f64;
+
+        if id % 3 == 1 {
+            // Center
+            (bar_width as f64 / 2f64 - width / 2f64) as i16
+        } else {
+            // Right
+            bar_width as i16 - width as i16
+        }
+    } else {
+        // Return selected component's old X
+        components
+            .iter()
+            .filter(|c| id > c.id && c.id % 3 == id % 3)
+            .map(|c| c.width)
+            .sum::<u16>() as i16
+    }
 }

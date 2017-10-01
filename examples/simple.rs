@@ -9,8 +9,8 @@ use std::thread;
 struct ImageComponent {
     index: u32,
     index_reset: u32,
-    ordinal: u32,
     timeout: u64,
+    position: ComponentPosition,
 }
 
 impl Component for ImageComponent {
@@ -26,7 +26,7 @@ impl Component for ImageComponent {
     }
 
     fn position(&mut self) -> ComponentPosition {
-        ComponentPosition::LEFT(self.ordinal)
+        self.position.clone()
     }
 
     fn text(&mut self) -> Option<String> {
@@ -47,21 +47,20 @@ fn main() {
         .foreground_color(0, 255, 0, 255)
         .background_image(image)
         .height(30)
-        .output("DVI-1")
         .spawn()
         .unwrap();
 
     bar.draw(ImageComponent {
         index: 0,
         index_reset: 0,
-        ordinal: 0,
-        timeout: 5,
+        timeout: 1100,
+        position: ComponentPosition::CENTER(0),
     });
     bar.draw(ImageComponent {
         index: 1,
         index_reset: 1,
-        ordinal: 1,
-        timeout: 3,
+        timeout: 1300,
+        position: ComponentPosition::CENTER(1),
     });
 
     loop {
