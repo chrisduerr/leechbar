@@ -12,5 +12,9 @@ documentation = "https://docs.rs/leechbar"
 
 [dependencies]
 xcb = { version = "0.8.1", features = ["randr", "thread"] }
+cairo-sys-rs = { version = "0.4.0", features = ["xcb"] }
+cairo-rs = { version = "0.2.0", features = ["xcb"] }
 error-chain = "0.11.0"
-image = "*"
+pangocairo = "0.2.0"
+pango = "0.2.0"
+image = "0.16.0"

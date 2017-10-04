@@ -1,7 +1,7 @@
 extern crate image;
 extern crate leechbar;
 
-use leechbar::component::{Component, ComponentPosition};
+use leechbar::component::{Alignment, Component, ComponentPosition, Text};
 use leechbar::BarBuilder;
 use std::time::Duration;
 use std::thread;
@@ -26,11 +26,12 @@ impl Component for ImageComponent {
     }
 
     fn position(&mut self) -> ComponentPosition {
-        self.position.clone()
+        self.position
     }
 
-    fn text(&mut self) -> Option<String> {
-        None
+    fn text(&mut self) -> Option<Text> {
+        let text = format!("Hello, World! {}", self.index);
+        Some(Text::new(text).alignment(Alignment::CENTER))
     }
 
     fn timeout(&mut self) -> Duration {
@@ -46,6 +47,7 @@ fn main() {
         .background_color(255, 0, 255, 255)
         .foreground_color(0, 255, 0, 255)
         .background_image(image)
+        .font("Fira Mono Medium 10")
         .height(30)
         .spawn()
         .unwrap();
@@ -54,13 +56,13 @@ fn main() {
         index: 0,
         index_reset: 0,
         timeout: 1100,
-        position: ComponentPosition::CENTER(0),
+        position: ComponentPosition::new(Alignment::CENTER, 0),
     });
     bar.draw(ImageComponent {
         index: 1,
         index_reset: 1,
         timeout: 1300,
-        position: ComponentPosition::CENTER(1),
+        position: ComponentPosition::new(Alignment::CENTER, 1),
     });
 
     loop {

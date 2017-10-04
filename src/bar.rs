@@ -1,10 +1,12 @@
 use image::{DynamicImage, GenericImage, Pixel};
 use std::sync::{Arc, Mutex};
+use pango::FontDescription;
 use component::Component;
 use builder::BarBuilder;
 use xcb::{self, randr};
-use std::thread;
+use std::{cmp, thread};
 use error::*;
+use text;
 
 // Utility macro for setting window properties
 // This returns a Result
@@ -132,6 +134,7 @@ pub struct Bar {
     gcontext: u32,
     background_pixmap: u32,
     components: Arc<Mutex<Vec<BarComponent>>>,
+    font: Option<String>,
 }
 
 impl Bar {
@@ -143,6 +146,7 @@ impl Bar {
         // Create an empty skeleton bar
         let mut bar = Bar {
             conn,
+            font: builder.font,
             geometry: Geometry::new(0, 0, 0, 0),
             depth: 0,
             window: 0,
@@ -182,7 +186,6 @@ impl Bar {
         let bar = self.clone();
         thread::spawn(move || {
             loop {
-                // self.conn.wait_for_event();
                 if let Some(event) = bar.conn.wait_for_event() {
                     let r = event.response_type();
                     if r == xcb::EXPOSE {
@@ -203,7 +206,7 @@ impl Bar {
                             }
                         }
                     } else {
-                        // TODO
+                        // TODO: Handle mouse events
                     }
                 }
             }
@@ -227,72 +230,113 @@ impl Bar {
         // Start bar thread
         let bar = self.clone();
         thread::spawn(move || {
-            let (conn, gc, depth, win) = (bar.conn, bar.gcontext, bar.depth, bar.window);
-            loop {
-                // Get background
-                let image: Option<DynamicImage> = component.background();
-                if let Some(image) = image {
-                    // Calculate width and height
-                    let w = image.width() as u16;
-                    let h = image.height() as u16;
+            // Font has to be created for every thread because `FontDescription` is not `Send`
+            let mut font = if let Some(ref font) = bar.font {
+                FontDescription::from_string(font)
+            } else {
+                FontDescription::new()
+            };
 
+            // Shorten a few properties for the massive xcb methods
+            let (conn, gc, depth, win) = (&bar.conn, bar.gcontext, bar.depth, bar.window);
+
+            // Start component loop
+            loop {
+                // Get new text and background from component
+                let background = component.background();
+                let text = component.text();
+
+                // Calculate width and height of element
+                let (mut w, mut h) = (0, 0);
+                if let Some(ref image) = background {
+                    w = image.width() as u16;
+                    h = image.height() as u16;
+                }
+                if let Some(ref text) = text {
+                    let (text_width, text_height) = text::text_size(&text.content, &font).unwrap();
+                    w = cmp::max(w, text_width);
+                    h = cmp::max(h, text_height);
+
+                    // Check for font override
+                    if let Some(ref font_override) = text.font {
+                        font = FontDescription::from_string(font_override);
+                    }
+                }
+                h = cmp::min(h, bar.geometry.height);
+                w = cmp::min(w, bar.geometry.width);
+
+                // Prevents component from being redrawn while pixmap is freed
+                // Lock components
+                let mut components = bar.components.lock().unwrap();
+
+                // Free the old pixmap
+                xcb::free_pixmap(conn, pixmap);
+
+                // Update pixmap
+                xcb::create_pixmap_checked(conn, depth, pixmap, win, w, h)
+                    .request_check()
+                    .map_err(|e| format!("Unable to create component pixmap: {}", e))
+                    .unwrap();
+
+                // Add background to pixmap
+                if let Some(image) = background {
                     // Convert image to raw pixels
                     let data = convert_image(&image);
 
-                    // Prevents component from being redrawn while pixmap is freed
-                    // Lock components
-                    let mut components = bar.components.lock().unwrap();
-
-                    // Free the old pixmap
-                    xcb::free_pixmap(&conn, pixmap);
-
-                    // Update pixmap
-                    xcb::create_pixmap_checked(&conn, depth, pixmap, win, w, h)
-                        .request_check()
-                        .map_err(|e| format!("Unable to create component pixmap: {}", e))
-                        .unwrap();
-
                     // Put image
-                    xcb::put_image_checked(&conn, 2u8, pixmap, gc, w, h, 0, 0, 0, depth, &data)
+                    let iw = image.width() as u16;
+                    let ih = image.height() as u16;
+                    xcb::put_image_checked(conn, 2u8, pixmap, gc, iw, ih, 0, 0, 0, depth, &data)
                         .request_check()
                         .unwrap();
+                }
 
-                    // Get the X offset of the first item that will be redrawn
-                    let mut x = xoffset_by_id(&(*components), id, w, bar.geometry.width);
+                // Add text to pixmap
+                if let Some(text) = text {
+                    let screen = bar.screen().unwrap();
+                    text::render_text(conn, &screen, pixmap, w, h, &font, &text);
+                }
 
-                    // Get all components that need to be redrawn
-                    components.sort_by(|a, b| a.id.cmp(&b.id));
-                    let components = components
-                        .iter_mut()
-                        .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
-                        .collect::<Vec<&mut BarComponent>>();
+                // TODO: If width did not change, just clear and redraw this single component
 
-                    // Remove all selected components from the bar
-                    for component in &components {
-                        component
-                            .clear(&conn, win, gc, bar.background_pixmap)
-                            .unwrap();
-                    }
+                // Get the X offset of the first item that will be redrawn
+                let mut x = xoffset_by_id(&(*components), id, w, bar.geometry.width);
 
-                    // Redraw all selected components
-                    for component in components {
-                        // Old rectangle for clearing bar
-                        let (w, h) = if component.id == id {
-                            (w, h)
-                        } else {
-                            (component.width, component.height)
-                        };
+                // Get all components that need to be redrawn
+                components.sort_by(|a, b| a.id.cmp(&b.id));
+                let components = components
+                    .iter_mut()
+                    .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
+                    .collect::<Vec<&mut BarComponent>>();
 
-                        // Update the component
-                        component.update(x, w, h);
+                // Remove all selected components from the bar
+                for component in &components {
+                    component
+                        .clear(conn, win, gc, bar.background_pixmap)
+                        .unwrap();
+                }
 
-                        // Redraw the component
-                        if w > 0 && h > 0 {
-                            component.redraw(&conn, win, gc, x).unwrap();
-                            x += w as i16;
-                        }
+                // Redraw all selected components
+                for component in components {
+                    // Old rectangle for clearing bar
+                    let (w, h) = if component.id == id {
+                        (w, h)
+                    } else {
+                        (component.width, component.height)
+                    };
+
+                    // Update the component
+                    component.update(x, w, h);
+
+                    // Redraw the component
+                    if w > 0 && h > 0 {
+                        component.redraw(conn, win, gc, x).unwrap();
+                        x += w as i16;
                     }
                 }
+
+                // Flush XCB Connection
+                conn.flush();
 
                 // Sleep
                 thread::sleep(component.timeout());
@@ -495,12 +539,12 @@ fn xoffset_by_id(components: &[BarComponent], id: u32, new_width: u16, bar_width
             .filter(|c| c.id != id && c.id % 3 == id % 3);
 
         // Get new width of all components
-        let mut width = components.map(|c| c.width).sum::<u16>() as f64;
-        width += new_width as f64;
+        let mut width = f64::from(components.map(|c| c.width).sum::<u16>());
+        width += f64::from(new_width);
 
         if id % 3 == 1 {
             // Center
-            (bar_width as f64 / 2f64 - width / 2f64) as i16
+            (f64::from(bar_width) / 2f64 - width / 2f64) as i16
         } else {
             // Right
             bar_width as i16 - width as i16
