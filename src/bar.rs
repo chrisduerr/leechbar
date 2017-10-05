@@ -63,12 +63,21 @@ impl Geometry {
     }
 }
 
+impl Default for Geometry {
+    fn default() -> Self {
+        Geometry {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        }
+    }
+}
+
 // A component currently stored in the bar
 struct BarComponent {
     pixmap: u32,
-    width: u16,
-    height: u16,
-    x: i16,
+    geometry: Geometry,
     id: u32,
 }
 
@@ -78,25 +87,20 @@ impl BarComponent {
         let pixmap = conn.generate_id();
         BarComponent {
             pixmap,
-            width: 0,
-            height: 0,
-            x: 0,
+            geometry: Geometry::default(),
             id,
         }
     }
 
     // Update a component cached by the bar
-    fn update(&mut self, x: i16, width: u16, height: u16) {
-        self.height = height;
-        self.width = width;
-        self.x = x;
+    fn set_geometry(&mut self, geometry: Geometry) {
+        self.geometry = geometry;
     }
 
     // Redraw a component
     // Copies the pixmap to the window
-    fn redraw(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32, x: i16) -> Result<()> {
-        let w = self.width;
-        let h = self.height;
+    fn redraw(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32) -> Result<()> {
+        let (w, h, x) = (self.geometry.width, self.geometry.height, self.geometry.x);
         xcb::copy_area_checked(conn, self.pixmap, window, gc, 0, 0, x, 0, w, h)
             .request_check()
             .map_err(|e| format!("Unable to redraw component: {}", e))?;
@@ -107,7 +111,7 @@ impl BarComponent {
     // Clear the area of this component
     // This should be called before updating it
     fn clear(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32, bg: u32) -> Result<()> {
-        let (w, h, x) = (self.width, self.height, self.x);
+        let (w, h, x) = (self.geometry.width, self.geometry.height, self.geometry.x);
         if bg != 0 {
             // Copy image if background exists
             xcb::copy_area_checked(conn, bg, window, gc, x, 0, x, 0, w, h)
@@ -147,7 +151,7 @@ impl Bar {
         let mut bar = Bar {
             conn,
             font: builder.font,
-            geometry: Geometry::new(0, 0, 0, 0),
+            geometry: Geometry::default(),
             depth: 0,
             window: 0,
             gcontext: 0,
@@ -201,8 +205,9 @@ impl Bar {
                         // Redraw components
                         let components = bar.components.lock().unwrap();
                         for component in &*components {
-                            if component.width > 0 && component.height > 0 {
-                                component.redraw(&bar.conn, win, gc, component.x).unwrap();
+                            let geometry = component.geometry;
+                            if geometry.width > 0 && geometry.height > 0 {
+                                component.redraw(&bar.conn, win, gc).unwrap();
                             }
                         }
                     } else {
@@ -322,15 +327,15 @@ impl Bar {
                     let (w, h) = if component.id == id {
                         (w, h)
                     } else {
-                        (component.width, component.height)
+                        (component.geometry.width, component.geometry.height)
                     };
 
                     // Update the component
-                    component.update(x, w, h);
+                    component.set_geometry(Geometry::new(x, 0, w, h));
 
                     // Redraw the component
                     if w > 0 && h > 0 {
-                        component.redraw(conn, win, gc, x).unwrap();
+                        component.redraw(conn, win, gc).unwrap();
                         x += w as i16;
                     }
                 }
@@ -539,7 +544,7 @@ fn xoffset_by_id(components: &[BarComponent], id: u32, new_width: u16, bar_width
             .filter(|c| c.id != id && c.id % 3 == id % 3);
 
         // Get new width of all components
-        let mut width = f64::from(components.map(|c| c.width).sum::<u16>());
+        let mut width = f64::from(components.map(|c| c.geometry.width).sum::<u16>());
         width += f64::from(new_width);
 
         if id % 3 == 1 {
@@ -554,7 +559,7 @@ fn xoffset_by_id(components: &[BarComponent], id: u32, new_width: u16, bar_width
         components
             .iter()
             .filter(|c| id > c.id && c.id % 3 == id % 3)
-            .map(|c| c.width)
+            .map(|c| c.geometry.width)
             .sum::<u16>() as i16
     }
 }
