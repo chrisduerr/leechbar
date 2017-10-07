@@ -17,7 +17,7 @@ pub fn render_text(
     text: &Text,
 ) {
     // Create an xcb surface
-    let mut visualtype = find_visualtype(screen).unwrap();
+    let mut visualtype = find_visualtype32(screen).unwrap();
     let surface = unsafe {
         Surface::from_raw_full(cairo_sys::cairo_xcb_surface_create(
             (conn.get_raw_conn() as *mut cairo_sys::xcb_connection_t),
@@ -34,7 +34,7 @@ pub fn render_text(
     let layout = layout(&context, &text.content, font);
 
     // Set font color
-    context.set_source_rgb(0., 0., 0.);
+    context.set_source_rgba(0., 0., 0., 1.0);
 
     // Center text horizontally and vertically
     let text_height = f64::from(font.get_size()) / f64::from(SCALE);
@@ -78,11 +78,11 @@ fn layout(context: &Context, text: &str, font: &FontDescription) -> Layout {
     layout
 }
 
-// Get the default visualtype of a screen
-fn find_visualtype<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
+// Get the first available visualtype with 32 bit depth
+fn find_visualtype32<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
     for depth in screen.allowed_depths() {
-        for visual in depth.visuals() {
-            if visual.visual_id() == screen.root_visual() {
+        if depth.depth() == 32 {
+            for visual in depth.visuals() {
                 return Some(visual);
             }
         }

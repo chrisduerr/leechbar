@@ -76,18 +76,18 @@ impl Default for Geometry {
 
 // A component currently stored in the bar
 struct BarComponent {
-    pixmap: u32,
-    geometry: Geometry,
     id: u32,
+    picture: u32,
+    geometry: Geometry,
 }
 
 impl BarComponent {
     // Creates a new component
     fn new(id: u32, conn: &Arc<xcb::Connection>) -> Self {
-        let pixmap = conn.generate_id();
+        let picture = conn.generate_id();
         BarComponent {
-            pixmap,
             geometry: Geometry::default(),
+            picture,
             id,
         }
     }
@@ -99,27 +99,22 @@ impl BarComponent {
 
     // Redraw a component
     // Copies the pixmap to the window
-    fn redraw(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32) -> Result<()> {
+    fn redraw(&self, bar: &Bar) -> Result<()> {
         let (w, h, x) = (self.geometry.width, self.geometry.height, self.geometry.x);
-        xcb::copy_area_checked(conn, self.pixmap, window, gc, 0, 0, x, 0, w, h)
-            .request_check()
-            .map_err(|e| format!("Unable to redraw component: {}", e))?;
-
+        bar.composite_picture(self.picture, 0, x, w, h)?;
         Ok(())
     }
 
     // Clear the area of this component
     // This should be called before updating it
-    fn clear(&self, conn: &Arc<xcb::Connection>, window: u32, gc: u32, bg: u32) -> Result<()> {
+    fn clear(&self, bar: &Bar) -> Result<()> {
         let (w, h, x) = (self.geometry.width, self.geometry.height, self.geometry.x);
-        if bg != 0 {
+        if bar.background != 0 {
             // Copy image if background exists
-            xcb::copy_area_checked(conn, bg, window, gc, x, 0, x, 0, w, h)
-                .request_check()
-                .map_err(|e| format!("Unable to clear component: {}", e))?;
+            bar.composite_picture(bar.background, x, x, w, h)?;
         } else {
             // Clear rectangle if there is no background image
-            xcb::clear_area_checked(conn, false, window, x, 0, w, h)
+            xcb::clear_area_checked(&bar.conn, false, bar.window, x, 0, w, h)
                 .request_check()
                 .map_err(|e| format!("Unable to clear component: {}", e))?;
         }
@@ -133,12 +128,14 @@ impl BarComponent {
 pub struct Bar {
     conn: Arc<xcb::Connection>,
     geometry: Geometry,
-    depth: u8,
     window: u32,
+    window_pict: u32,
     gcontext: u32,
-    background_pixmap: u32,
-    components: Arc<Mutex<Vec<BarComponent>>>,
+    background: u32,
     font: Option<String>,
+    components: Arc<Mutex<Vec<BarComponent>>>,
+    format32: u32,
+    format24: u32,
 }
 
 impl Bar {
@@ -147,42 +144,86 @@ impl Bar {
         // Connect to the X server
         let conn = Arc::new(xcb::Connection::connect(None)?.0);
 
-        // Create an empty skeleton bar
-        let mut bar = Bar {
-            conn,
-            font: builder.font,
-            geometry: Geometry::default(),
-            depth: 0,
-            window: 0,
-            gcontext: 0,
-            background_pixmap: 0,
-            components: Arc::new(Mutex::new(Vec::new())),
-        };
-
         // Get geometry of the specified display
-        let info = bar.screen_info(builder.output)?;
-        bar.geometry = Geometry::new(info.x(), info.y(), info.width(), builder.height);
+        let info = screen_info(&conn, builder.output)?;
+        let geometry = Geometry::new(info.x(), info.y(), info.width(), builder.height);
 
         // Create the window
         let name = builder.name.as_bytes();
-        bar.create_window(builder.background_color, name)?;
+        let window = create_window(&conn, geometry, builder.background_color, name)?;
 
-        // Create a graphics context
-        bar.gcontext = bar.conn.generate_id();
-        xcb::create_gc_checked(&bar.conn, bar.gcontext, bar.window, &[])
+        // Get 24 bit and 32 bit image formats
+        let (format24, format32) = image_formats(&conn)?;
+
+        // Create a GC with 32 bit depth
+        let gcontext = {
+            // First create a dummy pixmap with 32 bit depth
+            let pix32 = conn.generate_id();
+            xcb::create_pixmap_checked(&conn, 32, pix32, window, 1, 1)
+                .request_check()
+                .map_err(|e| format!("Unable to create GC dummy pixmap: {}", e))?;
+
+            // Then create a gc from that pixmap
+            let gc = conn.generate_id();
+            xcb::create_gc_checked(&conn, gc, pix32, &[])
+                .request_check()
+                .map_err(|e| format!("Unable to create GC: {}", e))?;
+            gc
+        };
+
+        // Create picture for the window
+        let window_pict = conn.generate_id();
+        xcb::render::create_picture_checked(&conn, window_pict, window, format24, &[])
             .request_check()
-            .unwrap();
+            .map_err(|e| format!("Unable to create window picture: {}", e))?;
 
-        // Get depth of root
-        // Don't move this, it's required for creating the bg pixmap
-        bar.depth = bar.screen()?.root_depth();
+        // Create background picture
+        let background = if let Some(background_image) = builder.background_image {
+            // Get width and height for the picture
+            let w = background_image.width() as u16;
+            let h = background_image.height() as u16;
 
-        // Create background pixmap
-        if let Some(background_image) = builder.background_image {
-            bar.create_background_pixmap(background_image)?;
-        }
+            // Create a pixmap for creating the picture
+            let pix = conn.generate_id();
+            xcb::create_pixmap_checked(&conn, 32, pix, window, w, h)
+                .request_check()
+                .unwrap();
 
-        Ok(bar)
+            // Canvert the image to the right format
+            let data = convert_image(&background_image);
+
+            // Copy image data to pixmap
+            xcb::put_image_checked(&conn, 2u8, pix, gcontext, w, h, 0, 0, 0, 32, &data)
+                .request_check()
+                .unwrap();
+
+            // Create new picture from pixmap
+            let bg = conn.generate_id();
+            xcb::render::create_picture_checked(&conn, bg, pix, format32, &[])
+                .request_check()
+                .unwrap();
+
+            // Free the unneeded pixmap
+            xcb::free_pixmap(&conn, pix);
+
+            bg
+        } else {
+            0
+        };
+
+        // Create an empty skeleton bar
+        Ok(Bar {
+            conn,
+            window,
+            geometry,
+            gcontext,
+            format24,
+            format32,
+            background,
+            window_pict,
+            font: builder.font,
+            components: Arc::new(Mutex::new(Vec::new())),
+        })
     }
 
     // Start the event loop
@@ -193,13 +234,10 @@ impl Bar {
                 if let Some(event) = bar.conn.wait_for_event() {
                     let r = event.response_type();
                     if r == xcb::EXPOSE {
-                        // Redraw background if it's an image
-                        let (bg, gc, win) = (bar.background_pixmap, bar.gcontext, bar.window);
-                        if bg != 0 {
+                        // Composite bg over bar again if the image exists
+                        if bar.background != 0 {
                             let (w, h) = (bar.geometry.width, bar.geometry.height);
-                            xcb::copy_area_checked(&bar.conn, bg, win, gc, 0, 0, 0, 0, w, h)
-                                .request_check()
-                                .unwrap();
+                            bar.composite_picture(bar.background, 0, 0, w, h).unwrap();
                         };
 
                         // Redraw components
@@ -207,7 +245,7 @@ impl Bar {
                         for component in &*components {
                             let geometry = component.geometry;
                             if geometry.width > 0 && geometry.height > 0 {
-                                component.redraw(&bar.conn, win, gc).unwrap();
+                                component.redraw(&bar).unwrap();
                             }
                         }
                     } else {
@@ -226,7 +264,6 @@ impl Bar {
 
         // Register the component
         let bar_component = BarComponent::new(id, &self.conn);
-        let pixmap = bar_component.pixmap;
         {
             let mut components = self.components.lock().unwrap();
             (*components).push(bar_component);
@@ -243,7 +280,7 @@ impl Bar {
             };
 
             // Shorten a few properties for the massive xcb methods
-            let (conn, gc, depth, win) = (&bar.conn, bar.gcontext, bar.depth, bar.window);
+            let (conn, gc, win) = (&bar.conn, bar.gcontext, bar.window);
 
             // Start component loop
             loop {
@@ -274,13 +311,13 @@ impl Bar {
                 // Lock components
                 let mut components = bar.components.lock().unwrap();
 
-                // Free the old pixmap
-                xcb::free_pixmap(conn, pixmap);
-
-                // Update pixmap
-                xcb::create_pixmap_checked(conn, depth, pixmap, win, w, h)
+                // Create pixmap and fill it with transparent pixels
+                let pix = conn.generate_id();
+                xcb::create_pixmap_checked(conn, 32, pix, win, w, h)
                     .request_check()
-                    .map_err(|e| format!("Unable to create component pixmap: {}", e))
+                    .unwrap();
+                xcb::poly_fill_rectangle_checked(conn, pix, gc, &[xcb::Rectangle::new(0, 0, w, h)])
+                    .request_check()
                     .unwrap();
 
                 // Add background to pixmap
@@ -291,15 +328,15 @@ impl Bar {
                     // Put image
                     let iw = image.width() as u16;
                     let ih = image.height() as u16;
-                    xcb::put_image_checked(conn, 2u8, pixmap, gc, iw, ih, 0, 0, 0, depth, &data)
+                    xcb::put_image_checked(conn, 2u8, pix, gc, iw, ih, 0, 0, 0, 32, &data)
                         .request_check()
                         .unwrap();
                 }
 
                 // Add text to pixmap
                 if let Some(text) = text {
-                    let screen = bar.screen().unwrap();
-                    text::render_text(conn, &screen, pixmap, w, h, &font, &text);
+                    let screen = screen(conn).unwrap();
+                    text::render_text(conn, &screen, pix, w, h, &font, &text);
                 }
 
                 // TODO: If width did not change, just clear and redraw this single component
@@ -316,15 +353,19 @@ impl Bar {
 
                 // Remove all selected components from the bar
                 for component in &components {
-                    component
-                        .clear(conn, win, gc, bar.background_pixmap)
-                        .unwrap();
+                    component.clear(&bar).unwrap();
                 }
 
                 // Redraw all selected components
                 for component in components {
                     // Old rectangle for clearing bar
                     let (w, h) = if component.id == id {
+                        // Update picture with the new pixmap
+                        let pict = component.picture;
+                        xcb::render::free_picture(conn, pict);
+                        xcb::render::create_picture_checked(conn, pict, pix, bar.format32, &[])
+                            .request_check()
+                            .unwrap();
                         (w, h)
                     } else {
                         (component.geometry.width, component.geometry.height)
@@ -335,7 +376,7 @@ impl Bar {
 
                     // Redraw the component
                     if w > 0 && h > 0 {
-                        component.redraw(conn, win, gc).unwrap();
+                        component.redraw(&bar).unwrap();
                         x += w as i16;
                     }
                 }
@@ -349,169 +390,19 @@ impl Bar {
         });
     }
 
-    // Used to get the screen of the connection
-    // TODO: Cache this instead of getting it from conn every time
-    fn screen(&self) -> Result<xcb::Screen> {
-        self.conn
-            .get_setup()
-            .roots()
-            .next()
-            .ok_or_else(|| ErrorKind::XcbNoScreenError(()).into())
-    }
+    // Composite a picture on top of the background
+    fn composite_picture(&self, pic: u32, srcx: i16, tarx: i16, w: u16, h: u16) -> Result<()> {
+        // Shorten window to make xcb call single-line
+        let win = self.window_pict;
 
-    // Create a new window and set all required window parameters to make it a bar
-    fn create_window(&mut self, background_color: u32, window_title: &[u8]) -> Result<()> {
-        let conn = &self.conn;
-
-        // Create the window
-        let window = self.conn.generate_id();
-        xcb::create_window(
-            conn,
-            xcb::WINDOW_CLASS_COPY_FROM_PARENT as u8,
-            window,
-            self.screen()?.root(),
-            self.geometry.x,
-            self.geometry.y,
-            self.geometry.width,
-            self.geometry.height,
-            0,
-            xcb::WINDOW_CLASS_INPUT_OUTPUT as u16,
-            self.screen()?.root_visual(),
-            &[
-                (xcb::CW_BACK_PIXEL, background_color),
-                (
-                    xcb::CW_EVENT_MASK,
-                    xcb::EVENT_MASK_EXPOSURE | xcb::EVENT_MASK_KEY_PRESS
-                        | xcb::EVENT_MASK_ENTER_WINDOW,
-                ),
-                (xcb::CW_OVERRIDE_REDIRECT, 0),
-            ],
-        );
-
-        // Set all window properties
-        set_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK")?;
-        set_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY")?;
-        set_prop!(conn, window, "_NET_WM_DESKTOP", &[-1])?;
-        set_prop!(conn, window, "_NET_WM_NAME", window_title, "UTF8_STRING", 8)?;
-        set_prop!(conn, window, "WM_NAME", window_title, "STRING", 8)?;
-
-        // Request the WM to manage our window.
-        xcb::map_window(conn, window);
-
-        self.window = window;
-        Ok(())
-    }
-
-    // Get information about specified output
-    fn screen_info(
-        &self,
-        query_output_name: Option<String>,
-    ) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
-        if query_output_name.is_none() {
-            return self.primary_screen_info();
-        }
-        let query_output_name = query_output_name.unwrap(); // Safe unwrap
-
-        // Load screen resources of the root window
-        // Return result on error
-        let res_cookie = randr::get_screen_resources(&self.conn, self.screen()?.root());
-        let res_reply = res_cookie
-            .get_reply()
-            .map_err(|e| ErrorKind::XcbScreenResourcesError(e.error_code()))?;
-
-        // Get all crtcs from the reply
-        let crtcs = res_reply.crtcs();
-
-        for crtc in crtcs {
-            // Get info about crtc
-            let crtc_info_cookie = randr::get_crtc_info(&self.conn, *crtc, 0);
-            let crtc_info_reply = crtc_info_cookie.get_reply();
-
-            if let Ok(reply) = crtc_info_reply {
-                // Skip this crtc if it has no width or output
-                if reply.width() == 0 || reply.num_outputs() == 0 {
-                    continue;
-                }
-
-                // Get info of crtc's first output for output name
-                let output = reply.outputs()[0];
-                let output_info_cookie = randr::get_output_info(&self.conn, output, 0);
-                let output_info_reply = output_info_cookie.get_reply();
-
-                // Get the name of the first output
-                let mut output_name = String::new();
-                if let Ok(output_info_reply) = output_info_reply {
-                    output_name = String::from_utf8_lossy(output_info_reply.name()).into();
-                }
-
-                // If the output name is the requested name, return the dimensions
-                if output_name == query_output_name {
-                    return Ok(reply);
-                }
-            }
-        }
-
-        let error_msg = ["Unable to find output '", &query_output_name, "'"].concat();
-        Err(error_msg.into())
-    }
-
-    // Get information about the primary output
-    fn primary_screen_info(
-        &self,
-    ) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
-        // Load primary output
-        let output_cookie = randr::get_output_primary(&self.conn, self.screen()?.root());
-        let output_reply = output_cookie
-            .get_reply()
-            .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?;
-        let output = output_reply.output();
-
-        // Get crtc of primary output
-        let output_info_cookie = randr::get_output_info(&self.conn, output, 0);
-        let output_info_reply = output_info_cookie
-            .get_reply()
-            .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?;
-        let crtc = output_info_reply.crtc();
-
-        // Get info of primary output's crtc
-        let crtc_info_cookie = randr::get_crtc_info(&self.conn, crtc, 0);
-        Ok(
-            crtc_info_cookie
-                .get_reply()
-                .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?,
-        )
-    }
-
-    // Get the background pixmap with the image filled in
-    fn create_background_pixmap(&mut self, background: DynamicImage) -> Result<()> {
-        // Bar's gcontext and depth
-        let depth = self.depth;
-        let gc = self.gcontext;
-
-        // Make sure copied area is not bigger than image size
-        let h = background.height() as u16;
-        let w = background.width() as u16;
-
-        // Create pixmap
-        let pixmap = self.conn.generate_id();
-        xcb::create_pixmap_checked(&self.conn, depth, pixmap, self.window, w, h)
+        // Composite pictures
+        let op = xcb::render::PICT_OP_OVER as u8;
+        xcb::render::composite_checked(&self.conn, op, pic, 0, win, srcx, 0, 0, 0, tarx, 0, w, h)
             .request_check()
-            .unwrap();
+            .map_err(|e| format!("Unable to composite pictures: {}", e))?;
 
-        // Convert background image to raw pixel data
-        let data = convert_image(&background);
-
-        // Put image data into pixmap
-        xcb::put_image_checked(&self.conn, 2u8, pixmap, gc, w, h, 0, 0, 0, depth, &data)
-            .request_check()
-            .unwrap();
-
-        // Copy background image to window
-        xcb::copy_area_checked(&self.conn, pixmap, self.window, gc, 0, 0, 0, 0, w, h)
-            .request_check()
-            .unwrap();
-
-        self.background_pixmap = pixmap;
+        // Flush connection
+        self.conn.flush();
 
         Ok(())
     }
@@ -562,4 +453,185 @@ fn xoffset_by_id(components: &[BarComponent], id: u32, new_width: u16, bar_width
             .map(|c| c.geometry.width)
             .sum::<u16>() as i16
     }
+}
+
+// Get the 24 and 32 bit image formats
+// Response is Result<(format24, format32)>
+fn image_formats(conn: &Arc<xcb::Connection>) -> Result<(u32, u32)> {
+    // Query connection for all available formats
+    let formats = xcb::render::query_pict_formats(&conn)
+        .get_reply()
+        .map_err(|e| format!("Unable to query picture formats: {}", e))?
+        .formats();
+
+    let mut format24 = None;
+    let mut format32 = None;
+    for fmt in formats {
+        let direct = fmt.direct();
+
+        // Update 32 bit format if the format matches
+        if fmt.depth() == 32 && direct.alpha_shift() == 24 && direct.red_shift() == 16
+            && direct.green_shift() == 8 && direct.blue_shift() == 0
+        {
+            format32 = Some(fmt);
+        }
+
+        // Update 24 bit format if the format matches
+        if fmt.depth() == 24 && direct.red_shift() == 16 && direct.green_shift() == 8
+            && direct.blue_shift() == 0
+        {
+            format24 = Some(fmt);
+        }
+
+        // Stop iteration when matches have been found
+        if format32.is_some() && format24.is_some() {
+            break;
+        }
+    }
+
+    // Error if one of the formats hasn't been found
+    match (format24, format32) {
+        (Some(f_24), Some(f_32)) => Ok((f_24.id(), f_32.id())),
+        _ => Err("Unable to find picture formats".into()),
+    }
+}
+
+// Get information about specified output
+fn screen_info(
+    conn: &Arc<xcb::Connection>,
+    query_output_name: Option<String>,
+) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
+    let root = screen(&conn)?.root();
+
+    // Return the default screen when no output is specified
+    if query_output_name.is_none() {
+        return primary_screen_info(conn, root);
+    }
+    let query_output_name = query_output_name.unwrap(); // Safe unwrap
+
+    // Load screen resources of the root window
+    // Return result on error
+    let res_cookie = randr::get_screen_resources(conn, root);
+    let res_reply = res_cookie
+        .get_reply()
+        .map_err(|e| ErrorKind::XcbScreenResourcesError(e.error_code()))?;
+
+    // Get all crtcs from the reply
+    let crtcs = res_reply.crtcs();
+
+    for crtc in crtcs {
+        // Get info about crtc
+        let crtc_info_cookie = randr::get_crtc_info(conn, *crtc, 0);
+        let crtc_info_reply = crtc_info_cookie.get_reply();
+
+        if let Ok(reply) = crtc_info_reply {
+            // Skip this crtc if it has no width or output
+            if reply.width() == 0 || reply.num_outputs() == 0 {
+                continue;
+            }
+
+            // Get info of crtc's first output for output name
+            let output = reply.outputs()[0];
+            let output_info_cookie = randr::get_output_info(conn, output, 0);
+            let output_info_reply = output_info_cookie.get_reply();
+
+            // Get the name of the first output
+            let mut output_name = String::new();
+            if let Ok(output_info_reply) = output_info_reply {
+                output_name = String::from_utf8_lossy(output_info_reply.name()).into();
+            }
+
+            // If the output name is the requested name, return the dimensions
+            if output_name == query_output_name {
+                return Ok(reply);
+            }
+        }
+    }
+
+    let error_msg = ["Unable to find output '", &query_output_name, "'"].concat();
+    Err(error_msg.into())
+}
+
+// Get information about the primary output
+fn primary_screen_info(
+    conn: &Arc<xcb::Connection>,
+    root: u32,
+) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
+    // Load primary output
+    let output_cookie = randr::get_output_primary(conn, root);
+    let output_reply = output_cookie
+        .get_reply()
+        .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?;
+    let output = output_reply.output();
+
+    // Get crtc of primary output
+    let output_info_cookie = randr::get_output_info(conn, output, 0);
+    let output_info_reply = output_info_cookie
+        .get_reply()
+        .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?;
+    let crtc = output_info_reply.crtc();
+
+    // Get info of primary output's crtc
+    let crtc_info_cookie = randr::get_crtc_info(conn, crtc, 0);
+    Ok(
+        crtc_info_cookie
+            .get_reply()
+            .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?,
+    )
+}
+
+// Create a new window and set all required window parameters to make it a bar
+fn create_window(
+    conn: &Arc<xcb::Connection>,
+    geometry: Geometry,
+    background_color: u32,
+    window_title: &[u8],
+) -> Result<u32> {
+    // Get screen of connection
+    let screen = screen(conn)?;
+
+    // Create the window
+    let window = conn.generate_id();
+    xcb::create_window(
+        conn,
+        xcb::WINDOW_CLASS_COPY_FROM_PARENT as u8,
+        window,
+        screen.root(),
+        geometry.x,
+        geometry.y,
+        geometry.width,
+        geometry.height,
+        0,
+        xcb::WINDOW_CLASS_INPUT_OUTPUT as u16,
+        screen.root_visual(),
+        &[
+            (xcb::CW_BACK_PIXEL, background_color),
+            (
+                xcb::CW_EVENT_MASK,
+                xcb::EVENT_MASK_EXPOSURE | xcb::EVENT_MASK_KEY_PRESS | xcb::EVENT_MASK_ENTER_WINDOW,
+            ),
+            (xcb::CW_OVERRIDE_REDIRECT, 0),
+        ],
+    );
+
+    // Set all window properties
+    set_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK")?;
+    set_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY")?;
+    set_prop!(conn, window, "_NET_WM_DESKTOP", &[-1])?;
+    set_prop!(conn, window, "_NET_WM_NAME", window_title, "UTF8_STRING", 8)?;
+    set_prop!(conn, window, "WM_NAME", window_title, "STRING", 8)?;
+
+    // Request the WM to manage our window.
+    xcb::map_window(conn, window);
+
+    Ok(window)
+}
+
+// Used to get the screen of the connection
+// TODO: Cache this instead of getting it from conn every time
+fn screen(conn: &Arc<xcb::Connection>) -> Result<xcb::Screen> {
+    conn.get_setup()
+        .roots()
+        .next()
+        .ok_or_else(|| ErrorKind::XcbNoScreenError(()).into())
 }
