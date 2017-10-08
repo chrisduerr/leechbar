@@ -136,6 +136,7 @@ pub struct Bar {
     components: Arc<Mutex<Vec<BarComponent>>>,
     format32: u32,
     format24: u32,
+    color: (f64, f64, f64, f64),
 }
 
 impl Bar {
@@ -143,6 +144,9 @@ impl Bar {
     pub fn new(builder: BarBuilder) -> Result<Self> {
         // Connect to the X server
         let conn = Arc::new(xcb::Connection::connect(None)?.0);
+
+        // Global text foreground color
+        let color = builder.foreground_color;
 
         // Get geometry of the specified display
         let info = screen_info(&conn, builder.output)?;
@@ -214,6 +218,7 @@ impl Bar {
         // Create an empty skeleton bar
         Ok(Bar {
             conn,
+            color,
             window,
             geometry,
             gcontext,
@@ -286,7 +291,7 @@ impl Bar {
             loop {
                 // Get new text and background from component
                 let background = component.background();
-                let text = component.text();
+                let mut text = component.text();
 
                 // Shadow the font to make temporary override possible
                 let mut font = font.clone();
@@ -297,10 +302,13 @@ impl Bar {
                 if let Some(ref image) = background {
                     w = image.content.width() as u16;
                 }
-                if let Some(ref text) = text {
-                    // Check for font override
+                if let Some(ref mut text) = text {
+                    // Set fallback font and color
                     if let Some(ref font_override) = text.font {
                         font = FontDescription::from_string(font_override);
+                    }
+                    if text.color.is_none() {
+                        text.color = Some(bar.color);
                     }
 
                     let text_width = text::text_size(&text.content, &font).unwrap().0;

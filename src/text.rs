@@ -34,8 +34,8 @@ pub fn render_text(
     let layout = layout(&context, &text.content, font);
 
     // Set font color
-    // TODO: Add foreground color to bar and component
-    context.set_source_rgba(0., 0., 0., 1.0);
+    let color = text.color.unwrap(); // This is always Some
+    context.set_source_rgba(color.0, color.1, color.2, color.3);
 
     // Center text horizontally and vertically
     let text_height = f64::from(font.get_size()) / f64::from(SCALE);

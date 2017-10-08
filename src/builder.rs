@@ -28,7 +28,7 @@ use bar;
 pub struct BarBuilder {
     pub background_image: Option<DynamicImage>,
     pub background_color: u32,
-    pub foreground_color: u32,
+    pub foreground_color: (f64, f64, f64, f64),
     pub output: Option<String>,
     pub font: Option<String>,
     pub name: String,
@@ -46,7 +46,12 @@ impl BarBuilder {
     ///
     /// This takes the rgb values of the color as an ingeger from 0 to 255.
     pub fn foreground_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
-        self.foreground_color = color(red, green, blue, alpha);
+        self.foreground_color = (
+            f64::from(red) / 255.,
+            f64::from(green) / 255.,
+            f64::from(blue) / 255.,
+            f64::from(alpha) / 255.,
+        );
         self
     }
 
@@ -123,7 +128,7 @@ impl Default for BarBuilder {
         BarBuilder {
             background_image: None,
             background_color: 255,
-            foreground_color: 16_777_215,
+            foreground_color: (0., 0., 0., 1.),
             output: None,
             name: "leechbar".into(),
             font: None,

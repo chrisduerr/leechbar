@@ -46,7 +46,7 @@ fn main() {
     let image = image::open("img.png").unwrap();
     let mut bar = BarBuilder::new()
         .background_color(255, 0, 255, 255)
-        .foreground_color(0, 255, 0, 255)
+        .foreground_color(0, 0, 0, 255)
         .background_image(image)
         .font("Fira Mono Medium 10")
         .height(30)
