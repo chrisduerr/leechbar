@@ -1,7 +1,7 @@
 extern crate image;
 extern crate leechbar;
 
-use leechbar::component::{Alignment, Component, ComponentPosition, Text};
+use leechbar::component::{Alignment, Component, ComponentPosition, Image, Text};
 use leechbar::BarBuilder;
 use std::time::Duration;
 use std::thread;
@@ -14,7 +14,7 @@ struct ImageComponent {
 }
 
 impl Component for ImageComponent {
-    fn background(&mut self) -> Option<image::DynamicImage> {
+    fn background(&mut self) -> Option<Image> {
         let name = format!("./testimages/image{}.png", self.index);
         let image = image::open(&name).unwrap();
 
@@ -22,7 +22,8 @@ impl Component for ImageComponent {
         if self.index > 9 {
             self.index = self.index_reset;
         }
-        Some(image)
+
+        Some(Image::new(image))
     }
 
     fn position(&mut self) -> ComponentPosition {
@@ -31,7 +32,7 @@ impl Component for ImageComponent {
 
     fn text(&mut self) -> Option<Text> {
         let text = format!("Hello, World! {}", self.index);
-        Some(Text::new(text).alignment(Alignment::CENTER))
+        Some(Text::new(text))
     }
 
     fn timeout(&mut self) -> Duration {

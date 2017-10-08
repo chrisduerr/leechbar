@@ -2,7 +2,7 @@ use cairo::{Context, Format, ImageSurface, Surface};
 use pango::{FontDescription, Layout, LayoutExt, SCALE};
 use pangocairo::CairoContextExt;
 use xcb::{self, Screen, Visualtype};
-use component::{Alignment, Text};
+use component::Text;
 use std::sync::Arc;
 use cairo_sys;
 use error::*;
@@ -34,6 +34,7 @@ pub fn render_text(
     let layout = layout(&context, &text.content, font);
 
     // Set font color
+    // TODO: Add foreground color to bar and component
     context.set_source_rgba(0., 0., 0., 1.0);
 
     // Center text horizontally and vertically
@@ -42,12 +43,8 @@ pub fn render_text(
         - f64::from(layout.get_baseline()) / f64::from(SCALE))
         .floor() - 1.;
     let text_width = f64::from(text_size(&text.content, font).unwrap().0);
-    let text_left = match text.alignment {
-        Alignment::LEFT => 0.,
-        Alignment::CENTER => (f64::from(width) / 2. - text_width / 2.).floor() - 1.,
-        Alignment::RIGHT => f64::from(width) - text_width,
-    };
-    context.move_to(text_left, text_bottom);
+    let text_left = text.alignment.x_offset(width, text_width as u16);
+    context.move_to(f64::from(text_left), text_bottom);
 
     // Display text
     context.show_pango_layout(&layout);
@@ -82,7 +79,8 @@ fn layout(context: &Context, text: &str, font: &FontDescription) -> Layout {
 fn find_visualtype32<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
     for depth in screen.allowed_depths() {
         if depth.depth() == 32 {
-            for visual in depth.visuals() {
+            let visual = depth.visuals().next();
+            if let Some(visual) = visual {
                 return Some(visual);
             }
         }

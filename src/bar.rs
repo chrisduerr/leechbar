@@ -273,7 +273,7 @@ impl Bar {
         let bar = self.clone();
         thread::spawn(move || {
             // Font has to be created for every thread because `FontDescription` is not `Send`
-            let mut font = if let Some(ref font) = bar.font {
+            let font = if let Some(ref font) = bar.font {
                 FontDescription::from_string(font)
             } else {
                 FontDescription::new()
@@ -288,23 +288,24 @@ impl Bar {
                 let background = component.background();
                 let text = component.text();
 
+                // Shadow the font to make temporary override possible
+                let mut font = font.clone();
+
                 // Calculate width and height of element
-                let (mut w, mut h) = (0, 0);
+                let h = bar.geometry.height;
+                let mut w = 0;
                 if let Some(ref image) = background {
-                    w = image.width() as u16;
-                    h = image.height() as u16;
+                    w = image.content.width() as u16;
                 }
                 if let Some(ref text) = text {
-                    let (text_width, text_height) = text::text_size(&text.content, &font).unwrap();
-                    w = cmp::max(w, text_width);
-                    h = cmp::max(h, text_height);
-
                     // Check for font override
                     if let Some(ref font_override) = text.font {
                         font = FontDescription::from_string(font_override);
                     }
+
+                    let text_width = text::text_size(&text.content, &font).unwrap().0;
+                    w = cmp::max(w, text_width);
                 }
-                h = cmp::min(h, bar.geometry.height);
                 w = cmp::min(w, bar.geometry.width);
 
                 // Prevents component from being redrawn while pixmap is freed
@@ -323,12 +324,17 @@ impl Bar {
                 // Add background to pixmap
                 if let Some(image) = background {
                     // Convert image to raw pixels
-                    let data = convert_image(&image);
+                    let data = convert_image(&image.content);
 
-                    // Put image
-                    let iw = image.width() as u16;
-                    let ih = image.height() as u16;
-                    xcb::put_image_checked(conn, 2u8, pix, gc, iw, ih, 0, 0, 0, 32, &data)
+                    // Get width and height of the image
+                    let iw = image.content.width() as u16;
+                    let ih = image.content.height() as u16;
+
+                    // Get X position
+                    let x = image.alignment.x_offset(w, iw);
+
+                    // Put image on pixmap
+                    xcb::put_image_checked(conn, 2u8, pix, gc, iw, ih, x, 0, 0, 32, &data)
                         .request_check()
                         .unwrap();
                 }
@@ -459,7 +465,7 @@ fn xoffset_by_id(components: &[BarComponent], id: u32, new_width: u16, bar_width
 // Response is Result<(format24, format32)>
 fn image_formats(conn: &Arc<xcb::Connection>) -> Result<(u32, u32)> {
     // Query connection for all available formats
-    let formats = xcb::render::query_pict_formats(&conn)
+    let formats = xcb::render::query_pict_formats(conn)
         .get_reply()
         .map_err(|e| format!("Unable to query picture formats: {}", e))?
         .formats();
@@ -501,7 +507,7 @@ fn screen_info(
     conn: &Arc<xcb::Connection>,
     query_output_name: Option<String>,
 ) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
-    let root = screen(&conn)?.root();
+    let root = screen(conn)?.root();
 
     // Return the default screen when no output is specified
     if query_output_name.is_none() {

@@ -133,7 +133,7 @@ impl Default for BarBuilder {
     }
 }
 
-fn color(red: u8, green: u8, blue: u8, alpha: u8) -> u32 {
+pub fn color(red: u8, green: u8, blue: u8, alpha: u8) -> u32 {
     ((u32::from(alpha)) << 24) + ((u32::from(red)) << 16) + ((u32::from(green)) << 8)
         + u32::from(blue)
 }
