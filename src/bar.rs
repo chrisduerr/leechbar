@@ -299,8 +299,10 @@ impl Bar {
                 // Calculate width and height of element
                 let h = bar.geometry.height;
                 let mut w = 0;
-                if let Some(ref image) = background {
-                    w = image.content.width() as u16;
+                if let Some(ref background) = background {
+                    if let Some(ref image) = background.image {
+                        w = image.width() as u16;
+                    }
                 }
                 if let Some(ref mut text) = text {
                     // Set fallback font and color
@@ -330,21 +332,46 @@ impl Bar {
                     .unwrap();
 
                 // Add background to pixmap
-                if let Some(image) = background {
-                    // Convert image to raw pixels
-                    let data = convert_image(&image.content);
+                if let Some(background) = background {
+                    // Copy color if there is a color
+                    if let Some(color) = background.color {
+                        // Create a GC with the color
+                        let col_gc = conn.generate_id();
+                        xcb::create_gc_checked(
+                            conn,
+                            col_gc,
+                            pix,
+                            &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, color)],
+                        ).request_check()
+                            .unwrap();
 
-                    // Get width and height of the image
-                    let iw = image.content.width() as u16;
-                    let ih = image.content.height() as u16;
+                        // Fill the pixmap with the GC color
+                        xcb::poly_fill_rectangle_checked(
+                            conn,
+                            pix,
+                            col_gc,
+                            &[xcb::Rectangle::new(0, 0, w, h)],
+                        ).request_check()
+                            .unwrap();
+                    }
 
-                    // Get X position
-                    let x = image.alignment.x_offset(w, iw);
+                    // Copy image if there is an image
+                    if let Some(image) = background.image {
+                        // Convert image to raw pixels
+                        let data = convert_image(&image);
 
-                    // Put image on pixmap
-                    xcb::put_image_checked(conn, 2u8, pix, gc, iw, ih, x, 0, 0, 32, &data)
-                        .request_check()
-                        .unwrap();
+                        // Get width and height of the image
+                        let iw = image.width() as u16;
+                        let ih = image.height() as u16;
+
+                        // Get X position
+                        let x = background.alignment.x_offset(w, iw);
+
+                        // Put image on pixmap
+                        xcb::put_image_checked(conn, 2u8, pix, gc, iw, ih, x, 0, 0, 32, &data)
+                            .request_check()
+                            .unwrap();
+                    }
                 }
 
                 // Add text to pixmap

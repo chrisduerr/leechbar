@@ -1,5 +1,6 @@
 use image::DynamicImage;
 use std::time::Duration;
+use builder;
 
 // Alignment of component or text
 #[derive(Clone, Copy)]
@@ -87,16 +88,27 @@ impl Text {
 }
 
 // Struct for an image element
-pub struct Image {
-    pub content: DynamicImage,
+pub struct Background {
+    pub color: Option<u32>,
+    pub image: Option<DynamicImage>,
     pub alignment: Alignment,
 }
 
-impl Image {
+impl Background {
     // Create an image element
-    pub fn new(content: DynamicImage) -> Self {
-        Image {
-            content,
+    pub fn new_image(image: DynamicImage) -> Self {
+        Background {
+            image: Some(image),
+            color: None,
+            alignment: Alignment::CENTER,
+        }
+    }
+
+    // Create a color element
+    pub fn new_color(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
+        Background {
+            image: None,
+            color: Some(builder::color(red, green, blue, alpha)),
             alignment: Alignment::CENTER,
         }
     }
@@ -110,7 +122,7 @@ impl Image {
 
 // Trait for components
 pub trait Component {
-    fn background(&mut self) -> Option<Image>;
+    fn background(&mut self) -> Option<Background>;
     fn position(&mut self) -> ComponentPosition;
     fn text(&mut self) -> Option<Text>;
     fn timeout(&mut self) -> Duration;

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use cairo_sys;
 use error::*;
 
+// TODO: With default font the text height is not aligned properly
 pub fn render_text(
     conn: &Arc<xcb::Connection>,
     screen: &xcb::Screen,
