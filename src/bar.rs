@@ -172,6 +172,12 @@ impl Bar {
             xcb::create_gc_checked(&conn, gc, pix32, &[])
                 .request_check()
                 .map_err(|e| format!("Unable to create GC: {}", e))?;
+
+            // Free pixmap after creating the gc
+            xcb::free_pixmap_checked(&conn, pix32)
+                .request_check()
+                .map_err(|e| format!("Unable to free GC dummy pixmap: {}", e))?;
+
             gc
         };
 
@@ -208,7 +214,11 @@ impl Bar {
                 .unwrap();
 
             // Free the unneeded pixmap
-            xcb::free_pixmap(&conn, pix);
+            xcb::free_pixmap_checked(&conn, pix)
+                .request_check()
+                .map_err(|e| {
+                    format!("Uniable to free temporary background pixmap: {}", e)
+                })?;
 
             bg
         } else {
@@ -318,10 +328,6 @@ impl Bar {
                 }
                 w = cmp::min(w, bar.geometry.width);
 
-                // Prevents component from being redrawn while pixmap is freed
-                // Lock components
-                let mut components = bar.components.lock().unwrap();
-
                 // Create pixmap and fill it with transparent pixels
                 let pix = conn.generate_id();
                 xcb::create_pixmap_checked(conn, 32, pix, win, w, h)
@@ -353,6 +359,9 @@ impl Bar {
                             &[xcb::Rectangle::new(0, 0, w, h)],
                         ).request_check()
                             .unwrap();
+
+                        // Free gc after filling the rectangle
+                        xcb::free_gc(conn, col_gc);
                     }
 
                     // Copy image if there is an image
@@ -382,43 +391,54 @@ impl Bar {
 
                 // TODO: If width did not change, just clear and redraw this single component
 
-                // Get the X offset of the first item that will be redrawn
-                let mut x = xoffset_by_id(&(*components), id, w, bar.geometry.width);
+                // Prevents component from being redrawn while pixmap is freed
+                // Lock components
+                {
+                    let mut components = bar.components.lock().unwrap();
 
-                // Get all components that need to be redrawn
-                components.sort_by(|a, b| a.id.cmp(&b.id));
-                let components = components
-                    .iter_mut()
-                    .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
-                    .collect::<Vec<&mut BarComponent>>();
+                    // Get the X offset of the first item that will be redrawn
+                    let mut x = xoffset_by_id(&(*components), id, w, bar.geometry.width);
 
-                // Remove all selected components from the bar
-                for component in &components {
-                    component.clear(&bar).unwrap();
-                }
+                    // Get all components that need to be redrawn
+                    components.sort_by(|a, b| a.id.cmp(&b.id));
+                    let components = components
+                        .iter_mut()
+                        .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
+                        .collect::<Vec<&mut BarComponent>>();
 
-                // Redraw all selected components
-                for component in components {
-                    // Old rectangle for clearing bar
-                    let (w, h) = if component.id == id {
-                        // Update picture with the new pixmap
-                        let pict = component.picture;
-                        xcb::render::free_picture(conn, pict);
-                        xcb::render::create_picture_checked(conn, pict, pix, bar.format32, &[])
-                            .request_check()
-                            .unwrap();
-                        (w, h)
-                    } else {
-                        (component.geometry.width, component.geometry.height)
-                    };
+                    // Remove all selected components from the bar
+                    for component in &components {
+                        component.clear(&bar).unwrap();
+                    }
 
-                    // Update the component
-                    component.set_geometry(Geometry::new(x, 0, w, h));
+                    // Redraw all selected components
+                    for component in components {
+                        // Old rectangle for clearing bar
+                        let (w, h) = if component.id == id {
+                            // Update picture with the new pixmap
+                            let pict = component.picture;
+                            xcb::render::free_picture(conn, pict);
+                            xcb::render::create_picture_checked(conn, pict, pix, bar.format32, &[])
+                                .request_check()
+                                .unwrap();
 
-                    // Redraw the component
-                    if w > 0 && h > 0 {
-                        component.redraw(&bar).unwrap();
-                        x += w as i16;
+                            // Free the pixmap after picture has been created
+                            xcb::free_pixmap(conn, pix);
+
+                            // Return component dimensions
+                            (w, h)
+                        } else {
+                            (component.geometry.width, component.geometry.height)
+                        };
+
+                        // Update the component
+                        component.set_geometry(Geometry::new(x, 0, w, h));
+
+                        // Redraw the component
+                        if w > 0 && h > 0 {
+                            component.redraw(&bar).unwrap();
+                            x += w as i16;
+                        }
                     }
                 }
 
@@ -441,9 +461,6 @@ impl Bar {
         xcb::render::composite_checked(&self.conn, op, pic, 0, win, srcx, 0, 0, 0, tarx, 0, w, h)
             .request_check()
             .map_err(|e| format!("Unable to composite pictures: {}", e))?;
-
-        // Flush connection
-        self.conn.flush();
 
         Ok(())
     }

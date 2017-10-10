@@ -56,13 +56,13 @@ fn main() {
     bar.draw(ImageComponent {
         index: 0,
         index_reset: 0,
-        timeout: 1100,
+        timeout: 111,
         position: ComponentPosition::new(Alignment::CENTER, 0),
     });
     bar.draw(ImageComponent {
         index: 1,
         index_reset: 1,
-        timeout: 1300,
+        timeout: 100,
         position: ComponentPosition::new(Alignment::CENTER, 1),
     });
 
