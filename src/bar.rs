@@ -323,7 +323,7 @@ impl Bar {
                         text.color = Some(bar.color);
                     }
 
-                    let text_width = text::text_size(&text.content, &font).unwrap().0;
+                    let text_width = text::text_width(&text.content, &font).unwrap();
                     w = cmp::max(w, text_width);
                 }
                 w = cmp::min(w, bar.geometry.width);

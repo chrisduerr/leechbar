@@ -1,5 +1,5 @@
 use cairo::{Context, Format, ImageSurface, Surface};
-use pango::{FontDescription, Layout, LayoutExt, SCALE};
+use pango::{FontDescription, Layout, LayoutExt};
 use pangocairo::CairoContextExt;
 use xcb::{self, Screen, Visualtype};
 use component::Text;
@@ -7,7 +7,7 @@ use std::sync::Arc;
 use cairo_sys;
 use error::*;
 
-// TODO: With default font the text height is not aligned properly
+// Render text to a pixmap
 pub fn render_text(
     conn: &Arc<xcb::Connection>,
     screen: &xcb::Screen,
@@ -39,20 +39,17 @@ pub fn render_text(
     context.set_source_rgba(color.0, color.1, color.2, color.3);
 
     // Center text horizontally and vertically
-    let text_height = f64::from(font.get_size()) / f64::from(SCALE);
-    let text_bottom = (f64::from(height) / 2. + text_height / 2.
-        - f64::from(layout.get_baseline()) / f64::from(SCALE))
-        .floor() - 1.;
-    let text_width = f64::from(text_size(&text.content, font).unwrap().0);
-    let text_left = text.alignment.x_offset(width, text_width as u16);
-    context.move_to(f64::from(text_left), text_bottom);
+    let (text_width, text_height) = layout.get_pixel_size();
+    let text_y = (f64::from(height) - f64::from(text_height)) / 2.;
+    let text_x = f64::from(text.alignment.x_offset(width, text_width as u16));
+    context.move_to(text_x, text_y);
 
     // Display text
     context.show_pango_layout(&layout);
 }
 
-// Get the size text will have with the specified font
-pub fn text_size(text: &str, font: &FontDescription) -> Result<(u16, u16)> {
+// Get the width text will have with the specified font
+pub fn text_width(text: &str, font: &FontDescription) -> Result<(u16)> {
     // Create a dummy surface and context
     let surface = ImageSurface::create(Format::ARgb32, 0, 0).map_err(|e| {
         format!("Unable to create dummy layout for font size: {:?}", e)
@@ -62,10 +59,10 @@ pub fn text_size(text: &str, font: &FontDescription) -> Result<(u16, u16)> {
     // Create the layout
     let layout = layout(&context, text, font);
 
-    // Get the width and height of the text
-    let (height, width) = layout.get_pixel_size();
+    // Get the width of the text
+    let width = layout.get_pixel_size().0;
 
-    Ok((height as u16, width as u16))
+    Ok(width as u16)
 }
 
 // Create a layout with the font and text
