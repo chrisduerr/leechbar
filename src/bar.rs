@@ -313,6 +313,7 @@ impl Bar {
                     if let Some(ref image) = background.image {
                         w = image.width() as u16;
                     }
+                    w = cmp::max(w, background.min_width);
                 }
                 if let Some(ref mut text) = text {
                     // Set fallback font and color

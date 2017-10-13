@@ -92,6 +92,7 @@ pub struct Background {
     pub color: Option<u32>,
     pub image: Option<DynamicImage>,
     pub alignment: Alignment,
+    pub min_width: u16,
 }
 
 impl Background {
@@ -101,6 +102,7 @@ impl Background {
             image: Some(image),
             color: None,
             alignment: Alignment::CENTER,
+            min_width: 0,
         }
     }
 
@@ -110,12 +112,19 @@ impl Background {
             image: None,
             color: Some(builder::color(red, green, blue, alpha)),
             alignment: Alignment::CENTER,
+            min_width: 0,
         }
     }
 
     // Set the alignment of the image element
     pub fn alignment(mut self, alignment: Alignment) -> Self {
         self.alignment = alignment;
+        self
+    }
+
+    // Set the minimum width of the element
+    pub fn min_width(mut self, min_width: u16) -> Self {
+        self.min_width = min_width;
         self
     }
 }
