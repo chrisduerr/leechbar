@@ -1,5 +1,6 @@
 use image::{DynamicImage, GenericImage, Rgba};
 use error::*;
+use util;
 use bar;
 
 /// A bar configuration.
@@ -59,7 +60,7 @@ impl BarBuilder {
     ///
     /// This takes the rgb values of the color as an ingeger from 0 to 255.
     pub fn background_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
-        self.background_color = color(red, green, blue, alpha);
+        self.background_color = util::color(red, green, blue, alpha);
         self
     }
 
@@ -136,9 +137,4 @@ impl Default for BarBuilder {
             _new_lock: (),
         }
     }
-}
-
-pub fn color(red: u8, green: u8, blue: u8, alpha: u8) -> u32 {
-    ((u32::from(alpha)) << 24) + ((u32::from(red)) << 16) + ((u32::from(green)) << 8)
-        + u32::from(blue)
 }

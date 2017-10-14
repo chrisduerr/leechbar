@@ -1,142 +1,30 @@
-use image::{DynamicImage, GenericImage, Pixel};
+use bar_component::BarComponent;
 use std::sync::{Arc, Mutex};
 use pango::FontDescription;
 use component::Component;
+use image::GenericImage;
 use builder::BarBuilder;
 use xcb::{self, randr};
-use std::{cmp, thread};
+use geometry::Geometry;
+use std::thread;
 use error::*;
-use text;
-
-// Utility macro for setting window properties
-// This returns a Result
-macro_rules! set_prop {
-    ($conn:expr, $window:expr, $name:expr, @atom $value:expr) => {
-        {
-            match xcb::intern_atom($conn, true, $value).get_reply() {
-                Ok(atom) => set_prop!($conn, $window, $name, &[atom.atom()], "ATOM", 32),
-                Err(e) => Err(ErrorKind::XcbPropertyError(e.error_code())),
-            }
-        }
-    };
-    ($conn:expr, $window:expr, $name:expr, $data:expr) => {
-        {
-            set_prop!($conn, $window, $name, $data, "CARDINAL", 32)
-        }
-    };
-    ($conn:expr, $window:expr, $name:expr, $data:expr, $type:expr, $size:expr) => {
-        {
-            let type_atom = xcb::intern_atom($conn, true, $type).get_reply();
-            let property = xcb::intern_atom($conn, true, $name).get_reply();
-            match (type_atom, property) {
-                (Ok(type_atom), Ok(property)) => {
-                    let property = property.atom();
-                    let type_atom = type_atom.atom();
-                    let mode = xcb::PROP_MODE_REPLACE as u8;
-                    xcb::change_property($conn, mode, $window, property, type_atom, $size, $data);
-                    Ok(())
-                },
-                (Err(e), _) | (_, Err(e)) => Err(ErrorKind::XcbPropertyError(e.error_code())),
-            }
-        }
-    };
-}
-
-// Geometry of the bar
-#[derive(Clone, Copy)]
-struct Geometry {
-    x: i16,
-    y: i16,
-    width: u16,
-    height: u16,
-}
-
-impl Geometry {
-    // Helper for creating a geometry without struct syntax
-    fn new(x: i16, y: i16, width: u16, height: u16) -> Self {
-        Geometry {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-}
-
-impl Default for Geometry {
-    fn default() -> Self {
-        Geometry {
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-        }
-    }
-}
-
-// A component currently stored in the bar
-struct BarComponent {
-    id: u32,
-    picture: u32,
-    geometry: Geometry,
-}
-
-impl BarComponent {
-    // Creates a new component
-    fn new(id: u32, conn: &Arc<xcb::Connection>) -> Self {
-        let picture = conn.generate_id();
-        BarComponent {
-            geometry: Geometry::default(),
-            picture,
-            id,
-        }
-    }
-
-    // Update a component cached by the bar
-    fn set_geometry(&mut self, geometry: Geometry) {
-        self.geometry = geometry;
-    }
-
-    // Redraw a component
-    // Copies the pixmap to the window
-    fn redraw(&self, bar: &Bar) -> Result<()> {
-        let (w, h, x) = (self.geometry.width, self.geometry.height, self.geometry.x);
-        bar.composite_picture(self.picture, 0, x, w, h)?;
-        Ok(())
-    }
-
-    // Clear the area of this component
-    // This should be called before updating it
-    fn clear(&self, bar: &Bar) -> Result<()> {
-        let (w, h, x) = (self.geometry.width, self.geometry.height, self.geometry.x);
-        if bar.background != 0 {
-            // Copy image if background exists
-            bar.composite_picture(bar.background, x, x, w, h)?;
-        } else {
-            // Clear rectangle if there is no background image
-            xcb::clear_area_checked(&bar.conn, false, bar.window, x, 0, w, h)
-                .request_check()
-                .map_err(|e| format!("Unable to clear component: {}", e))?;
-        }
-
-        Ok(())
-    }
-}
+use render;
+use util;
 
 // The main bar struct for keeping state
 #[derive(Clone)]
 pub struct Bar {
-    conn: Arc<xcb::Connection>,
-    geometry: Geometry,
-    window: u32,
-    window_pict: u32,
-    gcontext: u32,
-    background: u32,
-    font: Option<String>,
-    components: Arc<Mutex<Vec<BarComponent>>>,
-    format32: u32,
-    format24: u32,
-    color: (f64, f64, f64, f64),
+    pub conn: Arc<xcb::Connection>,
+    pub geometry: Geometry,
+    pub window: u32,
+    pub window_pict: u32,
+    pub gcontext: u32,
+    pub background: u32,
+    pub font: Option<String>,
+    pub components: Arc<Mutex<Vec<BarComponent>>>,
+    pub format32: u32,
+    pub format24: u32,
+    pub color: (f64, f64, f64, f64),
 }
 
 impl Bar {
@@ -165,18 +53,18 @@ impl Bar {
             let pix32 = conn.generate_id();
             xcb::create_pixmap_checked(&conn, 32, pix32, window, 1, 1)
                 .request_check()
-                .map_err(|e| format!("Unable to create GC dummy pixmap: {}", e))?;
+                .map_err(|e| ErrorKind::XError(format!("Unable to create GC dummy pixmap: {}", e)))?;
 
             // Then create a gc from that pixmap
             let gc = conn.generate_id();
             xcb::create_gc_checked(&conn, gc, pix32, &[])
                 .request_check()
-                .map_err(|e| format!("Unable to create GC: {}", e))?;
+                .map_err(|e| ErrorKind::XError(format!("Unable to create GC: {}", e)))?;
 
             // Free pixmap after creating the gc
             xcb::free_pixmap_checked(&conn, pix32)
                 .request_check()
-                .map_err(|e| format!("Unable to free GC dummy pixmap: {}", e))?;
+                .map_err(|e| ErrorKind::XError(format!("Unable to free GC dummy pixmap: {}", e)))?;
 
             gc
         };
@@ -185,7 +73,7 @@ impl Bar {
         let window_pict = conn.generate_id();
         xcb::render::create_picture_checked(&conn, window_pict, window, format24, &[])
             .request_check()
-            .map_err(|e| format!("Unable to create window picture: {}", e))?;
+            .map_err(|e| ErrorKind::XError(format!("Unable to create window picture: {}", e)))?;
 
         // Create background picture
         let background = if let Some(background_image) = builder.background_image {
@@ -197,28 +85,30 @@ impl Bar {
             let pix = conn.generate_id();
             xcb::create_pixmap_checked(&conn, 32, pix, window, w, h)
                 .request_check()
-                .unwrap();
+                .map_err(
+                    |e| ErrorKind::XError(format!("Unable to create pixmap for bg image: {}", e)),
+                )?;
 
             // Canvert the image to the right format
-            let data = convert_image(&background_image);
+            let data = util::convert_image(&background_image);
 
             // Copy image data to pixmap
             xcb::put_image_checked(&conn, 2u8, pix, gcontext, w, h, 0, 0, 0, 32, &data)
                 .request_check()
-                .unwrap();
+                .map_err(|e| ErrorKind::XError(format!("Unable to copy image to bg pixmap: {}", e)))?;
 
             // Create new picture from pixmap
             let bg = conn.generate_id();
             xcb::render::create_picture_checked(&conn, bg, pix, format32, &[])
                 .request_check()
-                .unwrap();
+                .map_err(|e| ErrorKind::XError(format!("Unable to create bg picture: {}", e)))?;
 
             // Free the unneeded pixmap
             xcb::free_pixmap_checked(&conn, pix)
                 .request_check()
-                .map_err(|e| {
-                    format!("Uniable to free temporary background pixmap: {}", e)
-                })?;
+                .map_err(
+                    |e| ErrorKind::XError(format!("Unable to free temporary bg pixmap: {}", e)),
+                )?;
 
             bg
         } else {
@@ -252,7 +142,8 @@ impl Bar {
                         // Composite bg over bar again if the image exists
                         if bar.background != 0 {
                             let (w, h) = (bar.geometry.width, bar.geometry.height);
-                            bar.composite_picture(bar.background, 0, 0, w, h).unwrap();
+                            let res = bar.composite_picture(bar.background, 0, 0, w, h);
+                            err!("Unable to composite background: {}", res);
                         };
 
                         // Redraw components
@@ -260,7 +151,8 @@ impl Bar {
                         for component in &*components {
                             let geometry = component.geometry;
                             if geometry.width > 0 && geometry.height > 0 {
-                                component.redraw(&bar).unwrap();
+                                let res = component.redraw(&bar);
+                                err!("Unable to redraw component: {}", res);
                             }
                         }
                     } else {
@@ -273,7 +165,7 @@ impl Bar {
 
     // Handle drawing and updating a single element
     // Starts a new thread
-    pub fn draw<T: 'static + Component + Send>(&mut self, mut component: T) {
+    pub fn add<T: 'static + Component + Send>(&mut self, mut component: T) {
         // Permanent component id
         let id = component.position().unique_id();
 
@@ -294,166 +186,17 @@ impl Bar {
                 FontDescription::new()
             };
 
-            // Shorten a few properties for the massive xcb methods
-            let (conn, gc, win) = (&bar.conn, bar.gcontext, bar.window);
-
             // Start component loop
             loop {
-                // Get new text and background from component
-                let background = component.background();
-                let mut text = component.text();
-
-                // Shadow the font to make temporary override possible
-                let mut font = font.clone();
-
-                // Calculate width and height of element
-                let h = bar.geometry.height;
-                let mut w = 0;
-                if let Some(ref background) = background {
-                    if let Some(ref image) = background.image {
-                        w = image.width() as u16;
-                    }
-                    w = cmp::max(w, background.min_width);
-                }
-                if let Some(ref mut text) = text {
-                    // Set fallback font and color
-                    if let Some(ref font_override) = text.font {
-                        font = FontDescription::from_string(font_override);
-                    }
-                    if text.color.is_none() {
-                        text.color = Some(bar.color);
-                    }
-
-                    let text_width = text::text_width(&text.content, &font).unwrap();
-                    w = cmp::max(w, text_width);
-                }
-                w = cmp::min(w, bar.geometry.width);
-
-                // Create pixmap and fill it with transparent pixels
-                let pix = conn.generate_id();
-                xcb::create_pixmap_checked(conn, 32, pix, win, w, h)
-                    .request_check()
-                    .unwrap();
-                xcb::poly_fill_rectangle_checked(conn, pix, gc, &[xcb::Rectangle::new(0, 0, w, h)])
-                    .request_check()
-                    .unwrap();
-
-                // Add background to pixmap
-                if let Some(background) = background {
-                    // Copy color if there is a color
-                    if let Some(color) = background.color {
-                        // Create a GC with the color
-                        let col_gc = conn.generate_id();
-                        xcb::create_gc_checked(
-                            conn,
-                            col_gc,
-                            pix,
-                            &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, color)],
-                        ).request_check()
-                            .unwrap();
-
-                        // Fill the pixmap with the GC color
-                        xcb::poly_fill_rectangle_checked(
-                            conn,
-                            pix,
-                            col_gc,
-                            &[xcb::Rectangle::new(0, 0, w, h)],
-                        ).request_check()
-                            .unwrap();
-
-                        // Free gc after filling the rectangle
-                        xcb::free_gc(conn, col_gc);
-                    }
-
-                    // Copy image if there is an image
-                    if let Some(image) = background.image {
-                        // Convert image to raw pixels
-                        let data = convert_image(&image);
-
-                        // Get width and height of the image
-                        let iw = image.width() as u16;
-                        let ih = image.height() as u16;
-
-                        // Get X position
-                        let x = background.alignment.x_offset(w, iw);
-
-                        // Put image on pixmap
-                        xcb::put_image_checked(conn, 2u8, pix, gc, iw, ih, x, 0, 0, 32, &data)
-                            .request_check()
-                            .unwrap();
-                    }
-                }
-
-                // Add text to pixmap
-                if let Some(text) = text {
-                    let screen = screen(conn).unwrap();
-                    text::render_text(conn, &screen, pix, w, h, &font, &text);
-                }
-
-                // TODO: If width did not change, just clear and redraw this single component
-
-                // Prevents component from being redrawn while pixmap is freed
-                // Lock components
-                {
-                    let mut components = bar.components.lock().unwrap();
-
-                    // Get the X offset of the first item that will be redrawn
-                    let mut x = xoffset_by_id(&(*components), id, w, bar.geometry.width);
-
-                    // Get all components that need to be redrawn
-                    components.sort_by(|a, b| a.id.cmp(&b.id));
-                    let components = components
-                        .iter_mut()
-                        .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
-                        .collect::<Vec<&mut BarComponent>>();
-
-                    // Remove all selected components from the bar
-                    for component in &components {
-                        component.clear(&bar).unwrap();
-                    }
-
-                    // Redraw all selected components
-                    for component in components {
-                        // Old rectangle for clearing bar
-                        let (w, h) = if component.id == id {
-                            // Update picture with the new pixmap
-                            let pict = component.picture;
-                            xcb::render::free_picture(conn, pict);
-                            xcb::render::create_picture_checked(conn, pict, pix, bar.format32, &[])
-                                .request_check()
-                                .unwrap();
-
-                            // Free the pixmap after picture has been created
-                            xcb::free_pixmap(conn, pix);
-
-                            // Return component dimensions
-                            (w, h)
-                        } else {
-                            (component.geometry.width, component.geometry.height)
-                        };
-
-                        // Update the component
-                        component.set_geometry(Geometry::new(x, 0, w, h));
-
-                        // Redraw the component
-                        if w > 0 && h > 0 {
-                            component.redraw(&bar).unwrap();
-                            x += w as i16;
-                        }
-                    }
-                }
-
-                // Flush XCB Connection
-                conn.flush();
-
-                // Sleep
+                let res = render::render(&bar, &mut component, font.clone(), id);
+                err!("{}", res);
                 thread::sleep(component.timeout());
             }
         });
     }
 
     // Composite a picture on top of the background
-    fn composite_picture(&self, pic: u32, srcx: i16, tarx: i16, w: u16, h: u16) -> Result<()> {
+    pub fn composite_picture(&self, pic: u32, srcx: i16, tarx: i16, w: u16, h: u16) -> Result<()> {
         // Shorten window to make xcb call single-line
         let win = self.window_pict;
 
@@ -461,56 +204,9 @@ impl Bar {
         let op = xcb::render::PICT_OP_OVER as u8;
         xcb::render::composite_checked(&self.conn, op, pic, 0, win, srcx, 0, 0, 0, tarx, 0, w, h)
             .request_check()
-            .map_err(|e| format!("Unable to composite pictures: {}", e))?;
+            .map_err(|e| ErrorKind::XError(format!("Unable to composite picture: {}", e)))?;
 
         Ok(())
-    }
-}
-
-// Convert an image to a raw Vector that is cropped to a specific size
-fn convert_image(image: &DynamicImage) -> Vec<u8> {
-    let mut image = image.to_rgba();
-
-    // Correct channels to fit xorg layout
-    for pixel in image.pixels_mut() {
-        let channels = pixel.channels_mut();
-        let tmp0 = channels[2];
-        let tmp2 = channels[0];
-        channels[0] = tmp0;
-        channels[2] = tmp2;
-    }
-
-    image.into_raw()
-}
-
-// Component's X-Offset by id
-// If id is from center component, will return new X of the first component
-fn xoffset_by_id(components: &[BarComponent], id: u32, new_width: u16, bar_width: u16) -> i16 {
-    // Check if component is not left-aligned
-    if id % 3 != 0 {
-        // Filter unrelevant components
-        let components = components
-            .iter()
-            .filter(|c| c.id != id && c.id % 3 == id % 3);
-
-        // Get new width of all components
-        let mut width = f64::from(components.map(|c| c.geometry.width).sum::<u16>());
-        width += f64::from(new_width);
-
-        if id % 3 == 1 {
-            // Center
-            (f64::from(bar_width) / 2f64 - width / 2f64) as i16
-        } else {
-            // Right
-            bar_width as i16 - width as i16
-        }
-    } else {
-        // Return selected component's old X
-        components
-            .iter()
-            .filter(|c| id > c.id && c.id % 3 == id % 3)
-            .map(|c| c.geometry.width)
-            .sum::<u16>() as i16
     }
 }
 
@@ -520,7 +216,7 @@ fn image_formats(conn: &Arc<xcb::Connection>) -> Result<(u32, u32)> {
     // Query connection for all available formats
     let formats = xcb::render::query_pict_formats(conn)
         .get_reply()
-        .map_err(|e| format!("Unable to query picture formats: {}", e))?
+        .map_err(|e| ErrorKind::XError(format!("Unable to query picture formats: {}", e)))?
         .formats();
 
     let mut format24 = None;
@@ -560,7 +256,7 @@ fn screen_info(
     conn: &Arc<xcb::Connection>,
     query_output_name: Option<String>,
 ) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
-    let root = screen(conn)?.root();
+    let root = util::screen(conn)?.root();
 
     // Return the default screen when no output is specified
     if query_output_name.is_none() {
@@ -632,11 +328,9 @@ fn primary_screen_info(
 
     // Get info of primary output's crtc
     let crtc_info_cookie = randr::get_crtc_info(conn, crtc, 0);
-    Ok(
-        crtc_info_cookie
-            .get_reply()
-            .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?,
-    )
+    Ok(crtc_info_cookie
+        .get_reply()
+        .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?)
 }
 
 // Create a new window and set all required window parameters to make it a bar
@@ -647,7 +341,7 @@ fn create_window(
     window_title: &[u8],
 ) -> Result<u32> {
     // Get screen of connection
-    let screen = screen(conn)?;
+    let screen = util::screen(conn)?;
 
     // Create the window
     let window = conn.generate_id();
@@ -684,13 +378,4 @@ fn create_window(
     xcb::map_window(conn, window);
 
     Ok(window)
-}
-
-// Used to get the screen of the connection
-// TODO: Cache this instead of getting it from conn every time
-fn screen(conn: &Arc<xcb::Connection>) -> Result<xcb::Screen> {
-    conn.get_setup()
-        .roots()
-        .next()
-        .ok_or_else(|| ErrorKind::XcbNoScreenError(()).into())
 }

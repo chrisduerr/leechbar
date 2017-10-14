@@ -1,6 +1,6 @@
 use image::DynamicImage;
 use std::time::Duration;
-use builder;
+use util;
 
 // Alignment of component or text
 #[derive(Clone, Copy)]
@@ -110,7 +110,7 @@ impl Background {
     pub fn new_color(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
         Background {
             image: None,
-            color: Some(builder::color(red, green, blue, alpha)),
+            color: Some(util::color(red, green, blue, alpha)),
             alignment: Alignment::CENTER,
             min_width: 0,
         }

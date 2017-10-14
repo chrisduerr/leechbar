@@ -53,13 +53,13 @@ fn main() {
         .spawn()
         .unwrap();
 
-    bar.draw(ImageComponent {
+    bar.add(ImageComponent {
         index: 0,
         index_reset: 0,
         timeout: 111,
         position: ComponentPosition::new(Alignment::CENTER, 0),
     });
-    bar.draw(ImageComponent {
+    bar.add(ImageComponent {
         index: 1,
         index_reset: 1,
         timeout: 100,
