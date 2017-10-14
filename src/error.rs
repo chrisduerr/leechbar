@@ -1,3 +1,4 @@
+//! Error Types.
 error_chain! {
     foreign_links {
         XcbConnectionError(::xcb::ConnError);
@@ -50,6 +51,7 @@ error_chain! {
             display("Unable to send XCB request: '{}'", description),
         }
 
+        /// The screen does not support a 32 bit visual.
         ScreenDepthError(arg: ()) {
             description("Invalid screen depth support"),
             display("The screen does not support 32 bit depth visuals"),

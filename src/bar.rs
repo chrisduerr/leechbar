@@ -11,25 +11,25 @@ use error::*;
 use render;
 use util;
 
-// The main bar struct for keeping state
+/// The main bar.
 #[derive(Clone)]
 pub struct Bar {
-    pub conn: Arc<xcb::Connection>,
-    pub geometry: Geometry,
-    pub window: u32,
-    pub window_pict: u32,
-    pub gcontext: u32,
-    pub background: u32,
-    pub font: Option<String>,
-    pub components: Arc<Mutex<Vec<BarComponent>>>,
-    pub format32: u32,
-    pub format24: u32,
-    pub color: (f64, f64, f64, f64),
+    pub(crate) conn: Arc<xcb::Connection>,
+    pub(crate) geometry: Geometry,
+    pub(crate) window: u32,
+    pub(crate) window_pict: u32,
+    pub(crate) gcontext: u32,
+    pub(crate) background: u32,
+    pub(crate) font: Option<String>,
+    pub(crate) components: Arc<Mutex<Vec<BarComponent>>>,
+    pub(crate) format32: u32,
+    pub(crate) format24: u32,
+    pub(crate) color: (f64, f64, f64, f64),
 }
 
 impl Bar {
     // Create a new bar
-    pub fn new(builder: BarBuilder) -> Result<Self> {
+    pub(crate) fn new(builder: BarBuilder) -> Result<Self> {
         // Connect to the X server
         let conn = Arc::new(xcb::Connection::connect(None)?.0);
 
@@ -131,40 +131,38 @@ impl Bar {
         })
     }
 
-    // Start the event loop
+    /// Start the event loop of the bar. This handles all X.Org events and is blocking.
+    ///
+    /// It **must** be called after adding all your components.
     pub fn start_event_loop(&self) {
-        let bar = self.clone();
-        thread::spawn(move || {
-            loop {
-                if let Some(event) = bar.conn.wait_for_event() {
-                    let r = event.response_type();
-                    if r == xcb::EXPOSE {
-                        // Composite bg over bar again if the image exists
-                        if bar.background != 0 {
-                            let (w, h) = (bar.geometry.width, bar.geometry.height);
-                            let res = bar.composite_picture(bar.background, 0, 0, w, h);
-                            err!("Unable to composite background: {}", res);
-                        };
+        loop {
+            if let Some(event) = self.conn.wait_for_event() {
+                let r = event.response_type();
+                if r == xcb::EXPOSE {
+                    // Composite bg over self again if the image exists
+                    if self.background != 0 {
+                        let (w, h) = (self.geometry.width, self.geometry.height);
+                        let res = self.composite_picture(self.background, 0, 0, w, h);
+                        err!("Unable to composite background: {}", res);
+                    };
 
-                        // Redraw components
-                        let components = bar.components.lock().unwrap();
-                        for component in &*components {
-                            let geometry = component.geometry;
-                            if geometry.width > 0 && geometry.height > 0 {
-                                let res = component.redraw(&bar);
-                                err!("Unable to redraw component: {}", res);
-                            }
+                    // Redraw components
+                    let components = self.components.lock().unwrap();
+                    for component in &*components {
+                        let geometry = component.geometry;
+                        if geometry.width > 0 && geometry.height > 0 {
+                            let res = component.redraw(&self);
+                            err!("Unable to redraw component: {}", res);
                         }
-                    } else {
-                        // TODO: Handle mouse events
                     }
+                } else {
+                    // TODO: Handle mouse events
                 }
             }
-        });
+        }
     }
 
-    // Handle drawing and updating a single element
-    // Starts a new thread
+    /// Add a new component to the bar.
     pub fn add<T: 'static + Component + Send>(&mut self, mut component: T) {
         // Permanent component id
         let id = component.position().unique_id();
@@ -190,13 +188,23 @@ impl Bar {
             loop {
                 let res = render::render(&bar, &mut component, font.clone(), id);
                 err!("{}", res);
-                thread::sleep(component.timeout());
+                match component.timeout() {
+                    Some(timeout) => thread::sleep(timeout),
+                    None => break,
+                };
             }
         });
     }
 
     // Composite a picture on top of the background
-    pub fn composite_picture(&self, pic: u32, srcx: i16, tarx: i16, w: u16, h: u16) -> Result<()> {
+    pub(crate) fn composite_picture(
+        &self,
+        pic: u32,
+        srcx: i16,
+        tarx: i16,
+        w: u16,
+        h: u16,
+    ) -> Result<()> {
         // Shorten window to make xcb call single-line
         let win = self.window_pict;
 

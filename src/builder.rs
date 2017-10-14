@@ -3,23 +3,24 @@ use error::*;
 use util;
 use bar;
 
-/// A bar configuration.
+/// The bar configuration.
 ///
-/// This is used to configure the bar. After configuration the bar can be created using the
+/// This is used to configure the bar. After configuration, the bar can be created using the
 /// [`spawn`] method.
 ///
 /// # Examples
 ///
 /// Basic usage:
 ///
-/// ```
+/// ```rust
 /// use leechbar::BarBuilder;
 ///
+/// // All method calls that take parameters are optional
 /// BarBuilder::new()
 ///     .background_color(255, 0, 255, 255)
-///     .foreground_color(0, 255, 0)
-///     .output("DVI-1")
+///     .foreground_color(0, 255, 0, 255)
 ///     .font("Fira Mono Medium 14")
+///     .output("DVI-1")
 ///     .name("MyBar")
 ///     .height(30)
 ///     .spawn();
@@ -27,13 +28,13 @@ use bar;
 ///
 /// [`spawn`]: struct.BarBuilder.html#method.spawn
 pub struct BarBuilder {
-    pub background_image: Option<DynamicImage>,
-    pub background_color: u32,
-    pub foreground_color: (f64, f64, f64, f64),
-    pub output: Option<String>,
-    pub font: Option<String>,
-    pub name: String,
-    pub height: u16,
+    pub(crate) background_image: Option<DynamicImage>,
+    pub(crate) background_color: u32,
+    pub(crate) foreground_color: (f64, f64, f64, f64),
+    pub(crate) output: Option<String>,
+    pub(crate) font: Option<String>,
+    pub(crate) name: String,
+    pub(crate) height: u16,
     _new_lock: (),
 }
 
@@ -45,7 +46,7 @@ impl BarBuilder {
 
     /// Change the default foreground color.
     ///
-    /// This takes the rgb values of the color as an ingeger from 0 to 255.
+    /// This takes the rgba values of the color as an ingeger from 0 to 255.
     pub fn foreground_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
         self.foreground_color = (
             f64::from(red) / 255.,
@@ -58,7 +59,7 @@ impl BarBuilder {
 
     /// Change the default background color.
     ///
-    /// This takes the rgb values of the color as an ingeger from 0 to 255.
+    /// This takes the rgba values of the color as an ingeger from 0 to 255.
     pub fn background_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
         self.background_color = util::color(red, green, blue, alpha);
         self
@@ -100,8 +101,10 @@ impl BarBuilder {
 
     /// Change the default output the bar should be displayed on.
     ///
-    /// This uses XRANDR to get the output with the specified name. An example value for a DVI
-    /// output would be "DVI-0". If not specified the primary output is selected.
+    /// This uses RANDR to get the output with the specified name. An example value for a DVI
+    /// output would be `DVI-0`.
+    ///
+    /// If not specified the primary output is selected.
     pub fn output<T: Into<String>>(mut self, output: T) -> Self {
         self.output = Some(output.into());
         self
@@ -109,11 +112,9 @@ impl BarBuilder {
 
     /// Spawn the bar with the currently configured settings.
     ///
-    /// This creates a window and registers it as a bar on Xorg. It also takes care of spawning
-    /// every processe required for the bar elements you have configured.
+    /// This creates a window and registers it as a bar on Xorg.
     pub fn spawn(self) -> Result<bar::Bar> {
         let bar = bar::Bar::new(self)?;
-        bar.start_event_loop();
         Ok(bar)
     }
 }
@@ -128,8 +129,8 @@ impl Default for BarBuilder {
 
         BarBuilder {
             background_image: None,
-            background_color: 255,
-            foreground_color: (0., 0., 0., 1.),
+            background_color: 0,
+            foreground_color: (1., 1., 1., 1.),
             output: None,
             name: "leechbar".into(),
             font: None,
