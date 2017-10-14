@@ -9,6 +9,9 @@ categories = ["gui"]
 description = "A library for building your own bar on top of XCB"
 repository = "https://github.com/chrisduerr/leechbar"
 documentation = "https://docs.rs/leechbar"
+exclude = [
+    "examples/*",
+]
 
 [dependencies]
 xcb = { version = "0.8.1", features = ["randr", "thread"] }
