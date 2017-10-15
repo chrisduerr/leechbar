@@ -63,6 +63,7 @@ impl ComponentPosition {
 ///                 .color(255, 0, 255, 255)
 ///                 .alignment(Alignment::LEFT);
 /// ```
+#[derive(Clone)]
 pub struct Text {
     pub(crate) content: String,
     pub(crate) font: Option<String>,
@@ -117,6 +118,7 @@ impl Text {
 /// let bg = Background::new_color(255, 0, 255, 255)
 ///                     .alignment(Alignment::CENTER);
 /// ```
+#[derive(Clone)]
 pub struct Background {
     pub(crate) color: Option<u32>,
     pub(crate) image: Option<DynamicImage>,
