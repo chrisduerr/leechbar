@@ -42,7 +42,7 @@ After creating a configuration using `BarBuilder`, you have to add your componen
 bar. This is a little more complicated, because you need to implement the `Component` trait.
 
 ```rust
-use leechbar::{BarBuilder, Component, Text, Background, ComponentPosition, Alignment};
+use leechbar::{BarBuilder, Component, Text, Background, ComponentPosition, Alignment, Width};
 use std::time::Duration;
 
 struct MyComponent;
@@ -68,6 +68,11 @@ impl Component for MyComponent {
     fn timeout(&mut self) -> Option<Duration> {
         None
     }
+
+    // No width restrictions
+    fn width(&mut self) -> Width {
+        Width::new()
+    1}
 
     // Ignore all events
     fn event(&mut self) {}

@@ -1,7 +1,7 @@
 extern crate image;
 extern crate leechbar;
 
-use leechbar::{Alignment, Background, BarBuilder, Component, ComponentPosition, Text};
+use leechbar::{Alignment, Background, BarBuilder, Component, ComponentPosition, Text, Width};
 use std::time::Duration;
 
 struct ImageComponent {
@@ -37,6 +37,10 @@ impl Component for ImageComponent {
         Some(Duration::from_millis(self.timeout))
     }
 
+    fn width(&mut self) -> Width {
+        Width::new()
+    }
+
     fn event(&mut self) {}
 }
 
@@ -54,13 +58,13 @@ fn main() {
     bar.add(ImageComponent {
         index: 0,
         index_reset: 0,
-        timeout: 111,
+        timeout: 1110,
         position: ComponentPosition::new(Alignment::CENTER, 0),
     });
     bar.add(ImageComponent {
         index: 1,
         index_reset: 1,
-        timeout: 100,
+        timeout: 1000,
         position: ComponentPosition::new(Alignment::CENTER, 1),
     });
 

@@ -31,14 +31,15 @@
 //!     .font("Fira Mono Medium 14")
 //!     .output("DVI-1")
 //!     .height(30)
-//!     .spawn();
+//!     .spawn()
+//!     .unwrap();
 //! ```
 //!
 //! After creating a configuration using [`BarBuilder`], you have to add your components to the
 //! bar. This is a little more complicated, because you need to implement the [`Component`] trait.
 //!
 //! ```rust
-//! use leechbar::{BarBuilder, Component, Text, Background, ComponentPosition, Alignment};
+//! use leechbar::{BarBuilder, Component, Text, Background, ComponentPosition, Alignment, Width};
 //! use std::time::Duration;
 //!
 //! struct MyComponent;
@@ -65,6 +66,11 @@
 //!         None
 //!     }
 //!
+//!     // No width restrictions
+//!     fn width(&mut self) -> Width {
+//!         Width::new()
+//!     }
+//!
 //!     // Ignore all events
 //!     fn event(&mut self) {}
 //! }
@@ -72,7 +78,7 @@
 //! // Create a new bar
 //! let mut bar = BarBuilder::new().spawn().unwrap();
 //! // Add an instance of your component to your bar
-//! bar.add(MyComponent{});
+//! bar.add(MyComponent);
 //! // Start the event loop that handles all X events
 //! bar.start_event_loop();
 //! ```

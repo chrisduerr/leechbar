@@ -1,5 +1,5 @@
 extern crate leechbar;
-use leechbar::{Alignment, Background, BarBuilder, Component, ComponentPosition, Text};
+use leechbar::{Alignment, Background, BarBuilder, Component, ComponentPosition, Text, Width};
 use std::time::Duration;
 
 struct MyComponent;
@@ -23,6 +23,11 @@ impl Component for MyComponent {
     // Do this only once
     fn timeout(&mut self) -> Option<Duration> {
         None
+    }
+
+    // No width restrictions
+    fn width(&mut self) -> Width {
+        Width::new()
     }
 
     // Ignore all events

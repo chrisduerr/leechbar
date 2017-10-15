@@ -61,6 +61,7 @@ impl ComponentPosition {
 /// let text = Text::new("Hello, World!")
 ///                 .font("Fira Sans Medium 11")
 ///                 .color(255, 0, 255, 255)
+///                 .alignment(Alignment::LEFT);
 /// ```
 pub struct Text {
     pub(crate) content: String,
@@ -114,16 +115,12 @@ impl Text {
 /// use leechbar::{Alignment, Background};
 ///
 /// let bg = Background::new_color(255, 0, 255, 255)
-///                     .alignment(Alignmet::CENTER)
-///                     .min_width(500);
+///                     .alignment(Alignment::CENTER);
 /// ```
-///
-/// [`min_width`]: #method.min_width
 pub struct Background {
     pub(crate) color: Option<u32>,
     pub(crate) image: Option<DynamicImage>,
     pub(crate) alignment: Alignment,
-    pub(crate) min_width: u16,
 }
 
 impl Background {
@@ -133,7 +130,6 @@ impl Background {
             image: Some(image),
             color: None,
             alignment: Alignment::CENTER,
-            min_width: 0,
         }
     }
 
@@ -143,7 +139,6 @@ impl Background {
             image: None,
             color: Some(util::color(red, green, blue, alpha)),
             alignment: Alignment::CENTER,
-            min_width: 0,
         }
     }
 
@@ -154,10 +149,77 @@ impl Background {
         self.alignment = alignment;
         self
     }
+}
 
-    /// Set the minimum width of the component.
-    pub fn min_width(mut self, min_width: u16) -> Self {
-        self.min_width = min_width;
+/// Width of a component.
+///
+/// This can override the width set by text or background. It can also be used to impose restraints
+/// on the component's size.
+///
+/// # Examples
+///
+/// ```rust
+/// use leechbar::Width;
+///
+/// // Width with min and max restrictions
+/// let width = Width::new()
+///                   .ignore_background()
+///                   .min(100)
+///                   .max(300);
+///
+/// // No width restrictions
+/// let width = Width::new();
+/// ```
+pub struct Width {
+    pub(crate) fixed: Option<u16>,
+    pub(crate) min: u16,
+    pub(crate) max: u16,
+    pub(crate) ignore_background: bool,
+    pub(crate) ignore_text: bool,
+}
+
+impl Width {
+    /// Create a new width without any size restrictions.
+    pub fn new() -> Self {
+        Self {
+            fixed: None,
+            min: 0,
+            max: ::std::u16::MAX,
+            ignore_text: false,
+            ignore_background: false,
+        }
+    }
+
+    /// Set the component to a fixed with. This overrides min, max, background and text width.
+    pub fn fixed(mut self, fixed: u16) -> Self {
+        self.fixed = Some(fixed);
+        self
+    }
+
+    /// Set the minimum width of a component.
+    pub fn min(mut self, min: u16) -> Self {
+        self.min = min;
+        self
+    }
+
+    /// Set the maximum width of a component.
+    pub fn max(mut self, max: u16) -> Self {
+        self.max = max;
+        self
+    }
+
+    /// When this is set, the width of the background is ignored.
+    /// It is useful if you want to fit a background image to the width of the text.
+    pub fn ignore_background(mut self) -> Self {
+        self.ignore_background = true;
+        self
+    }
+
+    /// When this is set, the width of the text is ignored.
+    /// It is useful if you want to fit text to the width of the background. This will usually
+    /// lead to text being cut off.
+    pub fn ignore_text(mut self) -> Self {
+        self.ignore_text = true;
         self
     }
 }
@@ -171,7 +233,7 @@ impl Background {
 /// # Examples
 ///
 /// ```rust
-/// use leechbar::{BarBuilder, Component, Text, Background, ComponentPosition, Alignment};
+/// use leechbar::{Component, Text, Background, ComponentPosition, Alignment, Width};
 /// use std::time::Duration;
 ///
 /// struct MyComponent;
@@ -198,16 +260,17 @@ impl Background {
 ///         None
 ///     }
 ///
+///     // No width restrictions
+///     fn width(&mut self) -> Width {
+///         Width::new()
+///     }
+///
 ///     // Ignore all events
 ///     fn event(&mut self) {}
 /// }
 ///
-/// // Create a new bar
-/// let mut bar = BarBuilder::new().spawn().unwrap();
-/// // Add an instance of your component to your bar
-/// bar.add(MyComponent{});
-/// // Start the event loop that handles all X events
-/// bar.start_event_loop();
+/// // Create a new component
+/// let component = MyComponent;
 /// ```
 ///
 /// [`Bar::add`]: struct.Bar.html#method.add
@@ -220,6 +283,8 @@ pub trait Component {
     /// The text of the component.
     /// Use `None` for no text.
     fn text(&mut self) -> Option<Text>;
+    /// The width of the component.
+    fn width(&mut self) -> Width;
     /// The polling rate for this component. This is the time between redrawing the component.
     /// Use `None` for drawing this component once.
     fn timeout(&mut self) -> Option<Duration>;

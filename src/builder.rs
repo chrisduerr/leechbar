@@ -23,7 +23,8 @@ use bar;
 ///     .output("DVI-1")
 ///     .name("MyBar")
 ///     .height(30)
-///     .spawn();
+///     .spawn()
+///     .unwrap();
 /// ```
 ///
 /// [`spawn`]: struct.BarBuilder.html#method.spawn

@@ -1,7 +1,7 @@
+use xcb::{self, Rectangle, Screen, Visualtype};
+use component::{Background, Component, Text, Width};
 use cairo::{Context, Format, ImageSurface, Surface};
 use pango::{FontDescription, Layout, LayoutExt};
-use xcb::{self, Rectangle, Screen, Visualtype};
-use component::{Component, Text};
 use bar_component::BarComponent;
 use pangocairo::CairoContextExt;
 use image::GenericImage;
@@ -26,29 +26,24 @@ pub fn render(
     // Get new text and background from component
     let background = component.background();
     let mut text = component.text();
+    let width = component.width();
 
-    // Calculate width and height of element
-    let h = bar.geometry.height;
-    let mut w = 0;
-    if let Some(ref background) = background {
-        if let Some(ref image) = background.image {
-            w = image.width() as u16;
-        }
-        w = cmp::max(w, background.min_width);
-    }
+    // Override the global font and color
     if let Some(ref mut text) = text {
-        // Set fallback font and color
+        // Override bar font if component font is some
         if let Some(ref font_override) = text.font {
             font = FontDescription::from_string(font_override);
         }
+
+        // Use bar foreground if component foreground is none
         if text.color.is_none() {
             text.color = Some(bar.color);
         }
-
-        let text_width = text_width(&text.content, &font).unwrap_or(0);
-        w = cmp::max(w, text_width);
     }
-    w = cmp::min(w, bar.geometry.width);
+
+    // Calculate width and height of element
+    let h = bar.geometry.height;
+    let w = calculate_width(bar, width, &background, &text, &font);
 
     // Create pixmap and fill it with transparent pixels
     let pix = conn.generate_id();
@@ -229,6 +224,49 @@ fn render_text(
     context.show_pango_layout(&layout);
 
     Ok(())
+}
+
+fn calculate_width(
+    bar: &Bar,
+    width: Width,
+    background: &Option<Background>,
+    text: &Option<Text>,
+    font: &FontDescription,
+) -> u16 {
+    // Just return fixed if it's some
+    if let Some(fixed) = width.fixed {
+        return fixed;
+    }
+
+    // Start with min which defaults to 0
+    let mut w = width.min;
+
+    // Set to background width if it isn't smaller than min
+    if let Some(ref background) = *background {
+        if let Some(ref image) = background.image {
+            // Check if bg width should be ignored
+            if !width.ignore_background {
+                w = cmp::max(w, image.width() as u16);
+            }
+        }
+    }
+
+    // Set to text width if it isn't smaller than min
+    if let Some(ref text) = *text {
+        // Check if text width should be ignored
+        if !width.ignore_text {
+            let text_width = text_width(&text.content, &font).unwrap_or(0);
+            w = cmp::max(w, text_width);
+        }
+    }
+
+    // Make sure it's not bigger than the whole bar
+    w = cmp::min(w, bar.geometry.width);
+
+    // Make sure it's not bigger than max
+    w = cmp::min(w, width.max);
+
+    w
 }
 
 // Get the width text will have with the specified font
