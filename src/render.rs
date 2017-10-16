@@ -81,7 +81,7 @@ pub fn render(
 
         // Clear the difference to old components
         let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
-        let width_change = components[comp_index].geometry.width - w;
+        let width_change = i32::from(components[comp_index].geometry.width) - i32::from(w);
         if width_change > 0 {
             clear_old_components(bar, &(*components), x, width_change as i16)?;
         }

@@ -11,7 +11,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! leechbar = "0.2.0"
+//! leechbar = "0.2.1"
 //! ```
 //!
 //! # Examples
