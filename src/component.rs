@@ -69,6 +69,7 @@ pub struct Text {
     pub(crate) font: Option<String>,
     pub(crate) color: Option<(f64, f64, f64, f64)>,
     pub(crate) alignment: Alignment,
+    pub(crate) yoffset: f64,
 }
 
 impl Text {
@@ -79,6 +80,7 @@ impl Text {
             font: None,
             color: None,
             alignment: Alignment::CENTER,
+            yoffset: 0.,
         }
     }
 
@@ -102,6 +104,12 @@ impl Text {
     /// Set the alignment of the text inside the component.
     pub fn alignment(mut self, alignment: Alignment) -> Self {
         self.alignment = alignment;
+        self
+    }
+
+    /// Offset the text vertically. Increasing this offset, moves the text down from the center.
+    pub fn yoffset(mut self, yoffset: f64) -> Self {
+        self.yoffset = yoffset;
         self
     }
 }

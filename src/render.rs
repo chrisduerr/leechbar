@@ -237,7 +237,7 @@ fn render_text(
     let (text_width, text_height) = layout.get_pixel_size();
     let text_y = (f64::from(height) - f64::from(text_height)) / 2.;
     let text_x = f64::from(text.alignment.x_offset(width, text_width as u16));
-    context.move_to(text_x, text_y);
+    context.move_to(text_x, text_y + text.yoffset);
 
     // Display text
     context.show_pango_layout(&layout);
