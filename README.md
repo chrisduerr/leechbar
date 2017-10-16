@@ -15,7 +15,7 @@ used by adding it to your `Cargo.toml`.
 
 ```toml
 [dependencies]
-leechbar = "0.1.0"
+leechbar = "0.2.0"
 ```
 
 ### Examples
