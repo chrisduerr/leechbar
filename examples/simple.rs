@@ -1,5 +1,5 @@
 extern crate leechbar;
-use leechbar::{Alignment, Background, BarBuilder, Component, ComponentPosition, Text, Width};
+use leechbar::{Alignment, Background, BarBuilder, Component, Text, Width};
 use std::time::Duration;
 
 struct MyComponent;
@@ -16,8 +16,8 @@ impl Component for MyComponent {
     }
 
     // First element on the left side
-    fn position(&mut self) -> ComponentPosition {
-        ComponentPosition::new(Alignment::CENTER, 0)
+    fn alignment(&mut self) -> Alignment {
+        Alignment::CENTER
     }
 
     // Do this only once

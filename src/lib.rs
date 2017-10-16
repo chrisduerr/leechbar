@@ -39,7 +39,7 @@
 //! bar. This is a little more complicated, because you need to implement the [`Component`] trait.
 //!
 //! ```rust,no_run
-//! use leechbar::{BarBuilder, Component, Text, Background, ComponentPosition, Alignment, Width};
+//! use leechbar::{BarBuilder, Component, Text, Background, Alignment, Width};
 //! use std::time::Duration;
 //!
 //! struct MyComponent;
@@ -56,9 +56,9 @@
 //!         Some(Text::new(String::from("Hello, World")))
 //!     }
 //!
-//!     // First element on the left side
-//!     fn position(&mut self) -> ComponentPosition {
-//!         ComponentPosition::new(Alignment::CENTER, 0)
+//!     // Put this element at the center of the bar
+//!     fn alignment(&mut self) -> Alignment {
+//!         Alignment::CENTER
 //!     }
 //!
 //!     // Do this only once

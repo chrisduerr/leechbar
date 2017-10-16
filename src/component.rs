@@ -19,33 +19,18 @@ impl Alignment {
             Alignment::RIGHT => (comp_width - width) as i16,
         }
     }
-}
 
-/// Alignment and order of a component.
-///
-/// The alignment controls the position inside the bar (left/center/right).
-///
-/// The ordinal is used to order the components of the bar. A left-aligned component with ordinal 0,
-/// will be left of a left-aligned component with ordinal 1.
-#[derive(Clone, Copy)]
-pub struct ComponentPosition {
-    alignment: Alignment,
-    ordinal: u32,
-}
+    // Calculate the next id for a component
+    pub(crate) fn id(&self, component_ids: &mut [u32; 3]) -> u32 {
+        let index = match *self {
+            Alignment::LEFT => 0,
+            Alignment::CENTER => 1,
+            Alignment::RIGHT => 2,
+        };
 
-impl ComponentPosition {
-    /// Create a new component position.
-    pub fn new(alignment: Alignment, ordinal: u32) -> Self {
-        ComponentPosition { alignment, ordinal }
-    }
-
-    // Use the position and alignment of the item to get a unique id.
-    pub(crate) fn unique_id(&self) -> u32 {
-        match self.alignment {
-            Alignment::LEFT => self.ordinal * 3,
-            Alignment::CENTER => self.ordinal * 3 + 1,
-            Alignment::RIGHT => self.ordinal * 3 + 2,
-        }
+        let return_val = component_ids[index];
+        component_ids[index] += 3;
+        return_val
     }
 }
 
@@ -254,7 +239,7 @@ impl Width {
 /// # Examples
 ///
 /// ```rust
-/// use leechbar::{Component, Text, Background, ComponentPosition, Alignment, Width};
+/// use leechbar::{Component, Text, Background, Alignment, Width};
 /// use std::time::Duration;
 ///
 /// struct MyComponent;
@@ -271,9 +256,9 @@ impl Width {
 ///         Some(Text::new(String::from("Hello, World")))
 ///     }
 ///
-///     // First element on the left side
-///     fn position(&mut self) -> ComponentPosition {
-///         ComponentPosition::new(Alignment::CENTER, 0)
+///     // Put this element at the center of the bar
+///     fn alignment(&mut self) -> Alignment {
+///         Alignment::CENTER
 ///     }
 ///
 ///     // Do this only once
@@ -299,8 +284,8 @@ pub trait Component {
     /// The background of the component.
     /// Use `None` for no background.
     fn background(&mut self) -> Option<Background>;
-    /// The alignment and ordinal of the component.
-    fn position(&mut self) -> ComponentPosition;
+    /// The alignment of the component.
+    fn alignment(&mut self) -> Alignment;
     /// The text of the component.
     /// Use `None` for no text.
     fn text(&mut self) -> Option<Text>;

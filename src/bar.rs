@@ -25,6 +25,7 @@ pub struct Bar {
     pub(crate) format32: u32,
     pub(crate) format24: u32,
     pub(crate) color: (f64, f64, f64, f64),
+    pub(crate) component_ids: [u32; 3],
 }
 
 impl Bar {
@@ -99,6 +100,7 @@ impl Bar {
             window_pict,
             font: builder.font,
             components: Arc::new(Mutex::new(Vec::new())),
+            component_ids: [0, 1, 2],
         })
     }
 
@@ -134,7 +136,7 @@ impl Bar {
     /// Add a new component to the bar.
     pub fn add<T: 'static + Component + Send>(&mut self, mut component: T) {
         // Permanent component id
-        let id = component.position().unique_id();
+        let id = component.alignment().id(&mut self.component_ids);
 
         // Register the component
         let bar_component = BarComponent::new(id, &self.conn);
