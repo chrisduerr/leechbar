@@ -48,6 +48,8 @@ impl BarBuilder {
     /// Change the default foreground color.
     ///
     /// This takes the rgba values of the color as an ingeger from 0 to 255.
+    ///
+    /// **Default:** White (255, 255, 255, 255)
     pub fn foreground_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
         self.foreground_color = (
             f64::from(red) / 255.,
@@ -61,6 +63,8 @@ impl BarBuilder {
     /// Change the default background color.
     ///
     /// This takes the rgba values of the color as an ingeger from 0 to 255.
+    ///
+    /// **Default:** Black (0, 0, 0, 255)
     pub fn background_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
         self.background_color = util::color(red, green, blue, alpha);
         self
@@ -71,6 +75,8 @@ impl BarBuilder {
     /// This takes an image and sets it as the default background for the bar. The image is not
     /// resized or modified in any way, so it is required to manually adjust it to fit the
     /// specified bar geometry.
+    ///
+    /// **Default:** No background image.
     pub fn background_image(mut self, image: DynamicImage) -> Self {
         self.background_image = Some(image);
         self
@@ -79,6 +85,8 @@ impl BarBuilder {
     /// Change the default name of the bar.
     ///
     /// This name is used by your Window Manager.
+    ///
+    /// **Default:** `leechbar`
     pub fn name<T: Into<String>>(mut self, name: T) -> Self {
         self.name = name.into();
         self
@@ -87,6 +95,8 @@ impl BarBuilder {
     /// Change the default font of the bar.
     ///
     /// This font is used for each block unless manually overwritten.
+    ///
+    /// **Default:** Default pango font.
     pub fn font<T: Into<String>>(mut self, font: T) -> Self {
         self.font = Some(font.into());
         self
@@ -95,6 +105,8 @@ impl BarBuilder {
     /// Change the default height of the bar.
     ///
     /// This specifies the vertical height used in pixels.
+    ///
+    /// **Default:** `30`
     pub fn height(mut self, height: u16) -> Self {
         self.height = height;
         self
@@ -106,6 +118,8 @@ impl BarBuilder {
     /// output would be `DVI-0`.
     ///
     /// If not specified the primary output is selected.
+    ///
+    /// **Default:** Primary output.
     pub fn output<T: Into<String>>(mut self, output: T) -> Self {
         self.output = Some(output.into());
         self

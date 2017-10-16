@@ -85,12 +85,16 @@ impl Text {
     }
 
     /// Set the font of the text.
+    ///
+    /// **Default:** Bar font.
     pub fn font<T: Into<String>>(mut self, font: T) -> Self {
         self.font = Some(font.into());
         self
     }
 
     /// Set the foreground color of the text.
+    ///
+    /// **Default:** Bar foreground color.
     pub fn color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
         self.color = Some((
             f64::from(red) / 255.,
@@ -102,12 +106,16 @@ impl Text {
     }
 
     /// Set the alignment of the text inside the component.
+    ///
+    /// **Default:** [`Alignment::CENTER`](enum.Alignment.html#variant.CENTER)
     pub fn alignment(mut self, alignment: Alignment) -> Self {
         self.alignment = alignment;
         self
     }
 
     /// Offset the text vertically. Increasing this offset, moves the text down from the center.
+    ///
+    /// **Default:** `0`
     pub fn yoffset(mut self, yoffset: f64) -> Self {
         self.yoffset = yoffset;
         self
@@ -155,6 +163,8 @@ impl Background {
     /// Set the alignment of the background image.
     ///
     /// This does nothing for a [`new_color`](#method.new_color) background.
+    ///
+    /// **Default:** [`Alignment::CENTER`](enum.Alignment.html#variant.CENTER)
     pub fn alignment(mut self, alignment: Alignment) -> Self {
         self.alignment = alignment;
         self
