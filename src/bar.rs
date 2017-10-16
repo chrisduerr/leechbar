@@ -1,10 +1,10 @@
+use image::{DynamicImage, GenericImage};
+use xcb::{self, randr, Rectangle};
 use bar_component::BarComponent;
 use std::sync::{Arc, Mutex};
 use pango::FontDescription;
 use component::Component;
-use image::GenericImage;
 use builder::BarBuilder;
-use xcb::{self, randr};
 use geometry::Geometry;
 use std::thread;
 use error::*;
@@ -76,44 +76,15 @@ impl Bar {
             .map_err(|e| ErrorKind::XError(format!("Unable to create window picture: {}", e)))?;
 
         // Create background picture
-        let background = if let Some(background_image) = builder.background_image {
-            // Get width and height for the picture
-            let w = background_image.width() as u16;
-            let h = background_image.height() as u16;
-
-            // Create a pixmap for creating the picture
-            let pix = conn.generate_id();
-            xcb::create_pixmap_checked(&conn, 32, pix, window, w, h)
-                .request_check()
-                .map_err(
-                    |e| ErrorKind::XError(format!("Unable to create pixmap for bg image: {}", e)),
-                )?;
-
-            // Canvert the image to the right format
-            let data = util::convert_image(&background_image);
-
-            // Copy image data to pixmap
-            xcb::put_image_checked(&conn, 2u8, pix, gcontext, w, h, 0, 0, 0, 32, &data)
-                .request_check()
-                .map_err(|e| ErrorKind::XError(format!("Unable to copy image to bg pixmap: {}", e)))?;
-
-            // Create new picture from pixmap
-            let bg = conn.generate_id();
-            xcb::render::create_picture_checked(&conn, bg, pix, format32, &[])
-                .request_check()
-                .map_err(|e| ErrorKind::XError(format!("Unable to create bg picture: {}", e)))?;
-
-            // Free the unneeded pixmap
-            xcb::free_pixmap_checked(&conn, pix)
-                .request_check()
-                .map_err(
-                    |e| ErrorKind::XError(format!("Unable to free temporary bg pixmap: {}", e)),
-                )?;
-
-            bg
-        } else {
-            0
-        };
+        let background = create_background_picture(
+            &conn,
+            window,
+            gcontext,
+            format32,
+            geometry,
+            builder.background_color,
+            builder.background_image,
+        )?;
 
         // Create an empty skeleton bar
         Ok(Bar {
@@ -140,18 +111,16 @@ impl Bar {
                 let r = event.response_type();
                 if r == xcb::EXPOSE {
                     // Composite bg over self again if the image exists
-                    if self.background != 0 {
-                        let (w, h) = (self.geometry.width, self.geometry.height);
-                        let res = self.composite_picture(self.background, 0, 0, w, h);
-                        err!("Unable to composite background: {}", res);
-                    };
+                    let (w, h) = (self.geometry.width, self.geometry.height);
+                    let res = self.composite_picture(self.background, 0, 0, w, h);
+                    err!("Unable to composite background: {}", res);
 
                     // Redraw components
                     let components = self.components.lock().unwrap();
                     for component in &*components {
                         let geometry = component.geometry;
                         if geometry.width > 0 && geometry.height > 0 {
-                            let res = component.redraw(&self);
+                            let res = component.redraw(self);
                             err!("Unable to redraw component: {}", res);
                         }
                     }
@@ -386,4 +355,69 @@ fn create_window(
     xcb::map_window(conn, window);
 
     Ok(window)
+}
+
+// Create the picture that contains the background color/image
+fn create_background_picture(
+    conn: &Arc<xcb::Connection>,
+    window: u32,
+    gcontext: u32,
+    format32: u32,
+    geometry: Geometry,
+    bg_color: u32,
+    background_image: Option<DynamicImage>,
+) -> Result<u32> {
+    // Create shorthands for geometry
+    let (w, h) = (geometry.width, geometry.height);
+
+    // Create a pixmap for creating the picture
+    let pix = conn.generate_id();
+    xcb::create_pixmap_checked(conn, 32, pix, window, w, h)
+        .request_check()
+        .map_err(|e| ErrorKind::XError(format!("Unable to create pixmap for bg image: {}", e)))?;
+
+    // Add the color to the pixmap
+    // Create a GC with the color
+    let col_gc = conn.generate_id();
+    xtry!(
+        create_gc_checked,
+        conn,
+        col_gc,
+        pix,
+        &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, bg_color)]
+    );
+
+    // Fill the pixmap with the GC color
+    xtry!(poly_fill_rectangle_checked, conn, pix, col_gc, &[Rectangle::new(0, 0, w, h)]);
+
+    // Free gc after filling the rectangle
+    xcb::free_gc(conn, col_gc);
+
+    // Add image to pixmap
+    if let Some(background_image) = background_image {
+        // Get width and height for the picture
+        let w = background_image.width() as u16;
+        let h = background_image.height() as u16;
+
+        // Canvert the image to the right format
+        let data = util::convert_image(&background_image);
+
+        // Copy image data to pixmap
+        xcb::put_image_checked(conn, 2u8, pix, gcontext, w, h, 0, 0, 0, 32, &data)
+            .request_check()
+            .map_err(|e| ErrorKind::XError(format!("Unable to copy image to bg pixmap: {}", e)))?;
+    }
+
+    // Create new picture from pixmap
+    let bg = conn.generate_id();
+    xcb::render::create_picture_checked(conn, bg, pix, format32, &[])
+        .request_check()
+        .map_err(|e| ErrorKind::XError(format!("Unable to create bg picture: {}", e)))?;
+
+    // Free the unneeded pixmap
+    xcb::free_pixmap_checked(conn, pix)
+        .request_check()
+        .map_err(|e| ErrorKind::XError(format!("Unable to free temporary bg pixmap: {}", e)))?;
+
+    Ok(bg)
 }

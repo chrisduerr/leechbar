@@ -30,23 +30,31 @@ impl BarComponent {
     // Redraw a component
     // Copies the pixmap to the window
     pub fn redraw(&self, bar: &Bar) -> Result<()> {
+        // Shorten geometry names
         let (w, h, x) = (self.geometry.width, self.geometry.height, self.geometry.x);
-        bar.composite_picture(self.picture, 0, x, w, h)?;
-        Ok(())
-    }
 
-    // Clear the area of this component
-    // This should be called before updating it
-    pub fn clear(&self, bar: &Bar) -> Result<()> {
-        let (w, h, x) = (self.geometry.width, self.geometry.height, self.geometry.x);
-        if bar.background != 0 {
-            // Copy image if background exists
-            bar.composite_picture(bar.background, x, x, w, h)?;
-        } else {
-            // Clear rectangle if there is no background image
-            xtry!(clear_area_checked, &bar.conn, false, bar.window, x, 0, w, h);
-        }
+        // Create an intermediate pixmap
+        let tmp_pix = bar.conn.generate_id();
+        xtry!(create_pixmap_checked, &bar.conn, 32, tmp_pix, bar.window, w, h);
 
+        // Clear content of pixmap
+        let rect = &[xcb::Rectangle::new(0, 0, w, h)];
+        xtry!(poly_fill_rectangle_checked, &bar.conn, tmp_pix, bar.gcontext, rect);
+
+        // Create picture for intermediate pixmap
+        let tmp_pict = bar.conn.generate_id();
+        xtry!(@render create_picture_checked, &bar.conn, tmp_pict, tmp_pix, bar.format32, &[]);
+
+        // Copy over background
+        let op = xcb::render::PICT_OP_OVER as u8;
+
+        // Copy teh background of the bar to that picture
+        xtry!(@render composite_checked, &bar.conn, op, bar.background, 0, tmp_pict, x, 0, 0, 0, 0, 0, w, h);
+
+        // Copy the component to the temporary picture
+        xtry!(@render composite_checked, &bar.conn, op, self.picture, 0, tmp_pict, 0, 0, 0, 0, 0, 0, w, h);
+
+        bar.composite_picture(tmp_pict, 0, x, w, h)?;
         Ok(())
     }
 }

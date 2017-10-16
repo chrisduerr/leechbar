@@ -22,7 +22,7 @@
 //! The first thing that needs to be done for using leechbar, is setting up the bar configuration
 //! itself. This is done using the [`BarBuilder`] struct.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use leechbar::BarBuilder;
 //!
 //! // All method calls that take parameters are optional
@@ -38,7 +38,7 @@
 //! After creating a configuration using [`BarBuilder`], you have to add your components to the
 //! bar. This is a little more complicated, because you need to implement the [`Component`] trait.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use leechbar::{BarBuilder, Component, Text, Background, ComponentPosition, Alignment, Width};
 //! use std::time::Duration;
 //!

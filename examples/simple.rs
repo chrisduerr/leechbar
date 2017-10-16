@@ -38,7 +38,7 @@ fn main() {
     // Create a new bar
     let mut bar = BarBuilder::new().spawn().unwrap();
     // Add an instance of your component to your bar
-    bar.add(MyComponent {});
+    bar.add(MyComponent);
     // Start the event loop that handles all X events
     bar.start_event_loop();
 }

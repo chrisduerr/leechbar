@@ -1,10 +1,10 @@
-use xcb::{self, Rectangle, Screen, Visualtype};
-use component::{Background, Component, Text, Width};
+use component::{Alignment, Background, Component, Text, Width};
 use cairo::{Context, Format, ImageSurface, Surface};
 use pango::{FontDescription, Layout, LayoutExt};
+use xcb::{self, Rectangle, Screen, Visualtype};
+use image::{DynamicImage, GenericImage};
 use bar_component::BarComponent;
 use pangocairo::CairoContextExt;
-use image::GenericImage;
 use geometry::Geometry;
 use std::sync::Arc;
 use cairo_sys;
@@ -45,65 +45,32 @@ pub fn render(
     let h = bar.geometry.height;
     let w = calculate_width(bar, width, &background, &text, &font);
 
-    // Create pixmap and fill it with transparent pixels
+    // Create pixmap
     let pix = conn.generate_id();
     xtry!(create_pixmap_checked, conn, 32, pix, win, w, h);
-    let rect = [Rectangle::new(0, 0, w, h)];
-    xtry!(poly_fill_rectangle_checked, conn, pix, gc, &rect);
+    xtry!(poly_fill_rectangle_checked, conn, pix, gc, &[Rectangle::new(0, 0, w, h)]);
 
-    // Add background to pixmap
-    if let Some(background) = background {
-        // Copy color if there is a color
-        if let Some(color) = background.color {
-            // Create a GC with the color
-            let col_gc = conn.generate_id();
-            xtry!(
-                create_gc_checked,
-                conn,
-                col_gc,
-                pix,
-                &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, color)]
-            );
-
-            // Fill the pixmap with the GC color
-            xtry!(poly_fill_rectangle_checked, conn, pix, col_gc, &rect);
-
-            // Free gc after filling the rectangle
-            xcb::free_gc(conn, col_gc);
-        }
-
-        // Copy image if there is an image
-        if let Some(image) = background.image {
-            // Convert image to raw pixels
-            let data = util::convert_image(&image);
-
-            // Get width and height of the image
-            let iw = image.width() as u16;
-            let ih = image.height() as u16;
-
-            // Get X position
-            let x = background.alignment.x_offset(w, iw);
-
-            // Put image on pixmap
-            xtry!(put_image_checked, conn, 2u8, pix, gc, iw, ih, x, 0, 0, 32, &data);
-        }
-    }
-
-    // Add text to pixmap
-    if let Some(text) = text {
-        let screen = util::screen(conn)?;
-        render_text(conn, &screen, pix, w, h, &font, &text)?;
-    }
-
-    // TODO: If width did not change, just clear and redraw this single component
-
-    // Prevents component from being redrawn while pixmap is freed
-    // Lock components
     {
+        // Lock the components
         let mut components = bar.components.lock().unwrap();
+        // Get the X offset of the item
+        let mut x = xoffset_by_id(&components, id, w, bar.geometry.width);
 
-        // Get the X offset of the first item that will be redrawn
-        let mut x = xoffset_by_id(&(*components), id, w, bar.geometry.width);
+        // Add background to pixmap
+        if let Some(background) = background {
+            let align = background.alignment;
+            let image = &background.image;
+            let color = background.color;
+            render_background(bar, pix, w, h, align, color, image)?;
+        }
+
+        // Add text to pixmap
+        if let Some(text) = text {
+            let screen = util::screen(conn)?;
+            render_text(conn, &screen, pix, w, h, &font, &text)?;
+        }
+
+        // TODO: If width did not change, just clear and redraw this single component
 
         // Get all components that need to be redrawn
         components.sort_by(|a, b| a.id.cmp(&b.id));
@@ -112,9 +79,11 @@ pub fn render(
             .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
             .collect::<Vec<&mut BarComponent>>();
 
-        // Remove all selected components from the bar
-        for component in &components {
-            component.clear(bar)?;
+        // Clear the difference to old components
+        let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
+        let width_change = components[comp_index].geometry.width - w;
+        if width_change > 0 {
+            clear_old_components(bar, &(*components), x, width_change as i16)?;
         }
 
         // Redraw all selected components
@@ -148,6 +117,56 @@ pub fn render(
 
     // Flush XCB Connection
     conn.flush();
+
+    Ok(())
+}
+
+// Render the background image/color
+fn render_background(
+    bar: &Bar,
+    pix: u32,
+    w: u16,
+    h: u16,
+    alignment: Alignment,
+    color: Option<u32>,
+    image: &Option<DynamicImage>,
+) -> Result<()> {
+    // Shorten bar variable names
+    let (conn, gc) = (&bar.conn, bar.gcontext);
+
+    if let Some(color) = color {
+        // Create a GC with the color
+        let col_gc = conn.generate_id();
+        xtry!(
+            create_gc_checked,
+            conn,
+            col_gc,
+            pix,
+            &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, color)]
+        );
+
+        // Fill the pixmap with the GC color
+        xtry!(poly_fill_rectangle_checked, conn, pix, col_gc, &[Rectangle::new(0, 0, w, h)]);
+
+        // Free gc after filling the rectangle
+        xcb::free_gc(conn, col_gc);
+    }
+
+    // Copy image if there is an image
+    if let Some(ref image) = *image {
+        // Convert image to raw pixels
+        let data = util::convert_image(image);
+
+        // Get width and height of the image
+        let iw = image.width() as u16;
+        let ih = image.height() as u16;
+
+        // Get X position
+        let x = alignment.x_offset(w, iw);
+
+        // Put image on pixmap
+        xtry!(put_image_checked, conn, 2u8, pix, gc, iw, ih, x, 0, 0, 32, &data);
+    }
 
     Ok(())
 }
@@ -226,6 +245,39 @@ fn render_text(
     Ok(())
 }
 
+// Clear the old area before redrawing
+fn clear_old_components(
+    bar: &Bar,
+    components: &[&mut BarComponent],
+    new_start: i16,
+    width_change: i16,
+) -> Result<()> {
+    // Bar shorthands
+    let bar_height = bar.geometry.height;
+
+    // Get old start x
+    let old_width_all = components.iter().map(|c| c.geometry.width).sum::<u16>() as i16;
+    let old_start = components[0].geometry.x;
+
+    // Redraw from old_x to new_x
+    if old_start < new_start {
+        let width = (new_start - old_start) as u16;
+        bar.composite_picture(bar.background, old_start, old_start, width, bar_height)?;
+    }
+
+    // Get the old end x and new end x
+    let old_end = old_start + old_width_all;
+    let new_end = old_end - width_change;
+
+    if old_end > new_end {
+        let width = (old_end - new_end) as u16;
+        bar.composite_picture(bar.background, new_end, new_end, width, bar.geometry.height)?;
+    }
+
+    Ok(())
+}
+
+// Calculate the width of a component
 fn calculate_width(
     bar: &Bar,
     width: Width,
@@ -255,7 +307,7 @@ fn calculate_width(
     if let Some(ref text) = *text {
         // Check if text width should be ignored
         if !width.ignore_text {
-            let text_width = text_width(&text.content, &font).unwrap_or(0);
+            let text_width = text_width(&text.content, font).unwrap_or(0);
             w = cmp::max(w, text_width);
         }
     }
