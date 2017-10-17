@@ -36,6 +36,7 @@ pub struct BarBuilder {
     pub(crate) font: Option<String>,
     pub(crate) name: String,
     pub(crate) height: u16,
+    pub(crate) text_yoffset: f64,
     _new_lock: (),
 }
 
@@ -125,6 +126,16 @@ impl BarBuilder {
         self
     }
 
+    /// Change the default vertical text offset of the bar.
+    ///
+    /// This is overridden by the component's vertical offset if present.
+    ///
+    /// **Default:** `0`
+    pub fn text_yoffset(mut self, text_yoffset: f64) -> Self {
+        self.text_yoffset = text_yoffset;
+        self
+    }
+
     /// Spawn the bar with the currently configured settings.
     ///
     /// This creates a window and registers it as a bar on Xorg.
@@ -150,6 +161,7 @@ impl Default for BarBuilder {
             name: "leechbar".into(),
             font: None,
             height: 30,
+            text_yoffset: 0.,
             _new_lock: (),
         }
     }

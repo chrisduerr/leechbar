@@ -54,7 +54,7 @@ pub struct Text {
     pub(crate) font: Option<String>,
     pub(crate) color: Option<(f64, f64, f64, f64)>,
     pub(crate) alignment: Alignment,
-    pub(crate) yoffset: f64,
+    pub(crate) yoffset: Option<f64>,
 }
 
 impl Text {
@@ -65,7 +65,7 @@ impl Text {
             font: None,
             color: None,
             alignment: Alignment::CENTER,
-            yoffset: 0.,
+            yoffset: None,
         }
     }
 
@@ -100,9 +100,9 @@ impl Text {
 
     /// Offset the text vertically. Increasing this offset, moves the text down from the center.
     ///
-    /// **Default:** `0`
+    /// **Default:** Bar's vertical text offset.
     pub fn yoffset(mut self, yoffset: f64) -> Self {
-        self.yoffset = yoffset;
+        self.yoffset = Some(yoffset);
         self
     }
 }

@@ -39,6 +39,11 @@ pub fn render(
         if text.color.is_none() {
             text.color = Some(bar.color);
         }
+
+        // Use bar text yoffset if component yoffset is none
+        if text.yoffset.is_none() {
+            text.yoffset = Some(bar.text_yoffset);
+        }
     }
 
     // Calculate width and height of element
@@ -237,7 +242,7 @@ fn render_text(
     let (text_width, text_height) = layout.get_pixel_size();
     let text_y = (f64::from(height) - f64::from(text_height)) / 2.;
     let text_x = f64::from(text.alignment.x_offset(width, text_width as u16));
-    context.move_to(text_x, text_y + text.yoffset);
+    context.move_to(text_x, text_y + text.yoffset.unwrap()); // yoffset is always Some
 
     // Display text
     context.show_pango_layout(&layout);

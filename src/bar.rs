@@ -26,6 +26,7 @@ pub struct Bar {
     pub(crate) format24: u32,
     pub(crate) color: (f64, f64, f64, f64),
     pub(crate) component_ids: [u32; 3],
+    pub(crate) text_yoffset: f64,
 }
 
 impl Bar {
@@ -33,9 +34,6 @@ impl Bar {
     pub(crate) fn new(builder: BarBuilder) -> Result<Self> {
         // Connect to the X server
         let conn = Arc::new(xcb::Connection::connect(None)?.0);
-
-        // Global text foreground color
-        let color = builder.foreground_color;
 
         // Get geometry of the specified display
         let info = screen_info(&conn, builder.output)?;
@@ -90,7 +88,6 @@ impl Bar {
         // Create an empty skeleton bar
         Ok(Bar {
             conn,
-            color,
             window,
             geometry,
             gcontext,
@@ -99,8 +96,10 @@ impl Bar {
             background,
             window_pict,
             font: builder.font,
-            components: Arc::new(Mutex::new(Vec::new())),
             component_ids: [0, 1, 2],
+            color: builder.foreground_color,
+            text_yoffset: builder.text_yoffset,
+            components: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
