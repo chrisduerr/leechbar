@@ -1,59 +1,38 @@
-use component::{Alignment, Background, Component, Text, Width};
-use cairo::{Context, Format, ImageSurface, Surface};
-use pango::{FontDescription, Layout, LayoutExt};
-use xcb::{self, Rectangle, Screen, Visualtype};
-use image::{DynamicImage, GenericImage};
-use bar_component::BarComponent;
-use pangocairo::CairoContextExt;
+use bar_component::{BarComponent, BarComponentCache};
+use xcb::{self, Rectangle};
+use foreground::Foreground;
+use background::Background;
+use component::Component;
+use alignment::Alignment;
 use geometry::Geometry;
+use picture::Picture;
 use std::sync::Arc;
-use cairo_sys;
+use color::Color;
+use width::Width;
 use error::*;
 use std::cmp;
 use bar::Bar;
-use util;
 
 // Renders the state of a component to the bar
-pub fn render(
-    bar: &Bar,
-    component: &mut Component,
-    mut font: FontDescription,
-    id: u32,
-) -> Result<()> {
+pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
     // Shorten a few properties for the massive xcb methods
-    let (conn, gc, win) = (&bar.conn, bar.gcontext, bar.window);
+    let conn = &bar.conn;
 
     // Get new text and background from component
-    let background = component.background();
-    let mut text = component.text();
     let width = component.width();
+    let background = component.background();
+    let mut foreground = component.foreground();
 
-    // Override the global font and color
-    if let Some(ref mut text) = text {
-        // Override bar font if component font is some
-        if let Some(ref font_override) = text.font {
-            font = FontDescription::from_string(font_override);
-        }
-
-        // Use bar foreground if component foreground is none
-        if text.color.is_none() {
-            text.color = Some(bar.color);
-        }
-
-        // Use bar text yoffset if component yoffset is none
-        if text.yoffset.is_none() {
-            text.yoffset = Some(bar.text_yoffset);
+    // Set yoffset of foreground if it is none
+    if let Some(ref mut foreground) = foreground {
+        if foreground.yoffset.is_none() {
+            foreground.yoffset = Some(bar.text_yoffset);
         }
     }
 
     // Calculate width and height of element
     let h = bar.geometry.height;
-    let w = calculate_width(bar, width, &background, &text, &font);
-
-    // Create pixmap
-    let pix = conn.generate_id();
-    xtry!(create_pixmap_checked, conn, 32, pix, win, w, h);
-    xtry!(poly_fill_rectangle_checked, conn, pix, gc, &[Rectangle::new(0, 0, w, h)]);
+    let w = calculate_width(bar, width, &background, &foreground);
 
     {
         // Lock the components
@@ -61,21 +40,19 @@ pub fn render(
         // Get the X offset of the item
         let mut x = xoffset_by_id(&components, id, w, bar.geometry.width);
 
-        // Add background to pixmap
-        if let Some(background) = background {
-            let align = background.alignment;
-            let image = &background.image;
-            let color = background.color;
-            render_background(bar, pix, w, h, align, color, image)?;
-        }
+        // Get the index of the current component
+        let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
 
-        // Add text to pixmap
-        if let Some(text) = text {
-            let screen = util::screen(conn)?;
-            render_text(conn, &screen, pix, w, h, &font, &text)?;
+        // Mark dirty if background or foreground changed
+        let new_fg_cache = foreground
+            .as_ref()
+            .map_or(BarComponentCache::new(), |fg| BarComponentCache::new_fg(fg));
+        let new_bg_cache = BarComponentCache::new_bg(&background);
+        let old_fg_cache = components[comp_index].fg_cache;
+        let old_bg_cache = components[comp_index].bg_cache;
+        if new_bg_cache != old_bg_cache || new_fg_cache != old_fg_cache {
+            update_picture(bar, &mut components[comp_index], &background, &foreground, w, h)?;
         }
-
-        // TODO: If width did not change, just clear and redraw this single component
 
         // Get all components that need to be redrawn
         components.sort_by(|a, b| a.id.cmp(&b.id));
@@ -85,7 +62,6 @@ pub fn render(
             .collect::<Vec<&mut BarComponent>>();
 
         // Clear the difference to old components
-        let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
         let width_change = i32::from(components[comp_index].geometry.width) - i32::from(w);
         if width_change > 0 {
             clear_old_components(bar, &(*components), x, width_change as i16)?;
@@ -95,14 +71,6 @@ pub fn render(
         for component in components {
             // Old rectangle for clearing bar
             let (w, h) = if component.id == id {
-                // Update picture with the new pixmap
-                let pict = component.picture;
-                xcb::render::free_picture(conn, pict);
-                xtry!(@render create_picture_checked, conn, pict, pix, bar.format32, &[]);
-
-                // Free the pixmap after picture has been created
-                xcb::free_pixmap(conn, pix);
-
                 // Return component dimensions
                 (w, h)
             } else {
@@ -112,11 +80,13 @@ pub fn render(
             // Update the component
             component.set_geometry(Geometry::new(x, 0, w, h));
 
-            // Redraw the component
-            if w > 0 && h > 0 {
+            // Don't redraw other components if width didn't change
+            // Don't redraw empty components
+            if w > 0 && h > 0 && (width_change != 0 || component.id == id) {
+                // Redraw the component
                 component.redraw(bar)?;
-                x += w as i16;
             }
+            x += w as i16;
         }
     }
 
@@ -126,52 +96,96 @@ pub fn render(
     Ok(())
 }
 
-// Render the background image/color
-fn render_background(
+// Update the picture of a `BarComponent`
+fn update_picture(
     bar: &Bar,
-    pix: u32,
+    component: &mut BarComponent,
+    background: &Background,
+    foreground: &Option<Foreground>,
     w: u16,
     h: u16,
+) -> Result<()> {
+    // Shorten variable names
+    let (conn, gc, win) = (&bar.conn, bar.gcontext, bar.window);
+
+    // Create pixmap with empty background
+    let pix = conn.generate_id();
+    xtry!(create_pixmap_checked, conn, 32, pix, win, w, h);
+    xtry!(poly_fill_rectangle_checked, conn, pix, gc, &[Rectangle::new(0, 0, w, h)]);
+
+    // Free old picture
+    let pict = component.picture;
+    xcb::render::free_picture(conn, pict);
+
+    // Create picture from pixmap
+    xtry!(@render create_picture_checked, conn, pict, pix, bar.format32, &[]);
+
+    // Render the background color
+    if let Some(color) = background.color {
+        render_color(bar, pix, w, h, color)?;
+    }
+
+    // Render the background image if it's not `None`
+    if let Some(ref image) = background.image {
+        render_picture(bar, pict, w, &image.arc, background.alignment)?;
+    }
+
+    // Render the foreground text
+    if let Some(ref foreground) = *foreground {
+        render_picture(bar, pict, w, &foreground.text.arc, foreground.alignment)?
+    }
+
+    // Free pixmap
+    xcb::free_pixmap(conn, pix);
+
+    Ok(())
+}
+
+// Render the a color to a pixmap
+fn render_color(bar: &Bar, pix: u32, w: u16, h: u16, color: Color) -> Result<()> {
+    // Shorten bar variable names
+    let conn = &bar.conn;
+
+    // Create a GC with the color
+    let col_gc = conn.generate_id();
+    xtry!(
+        create_gc_checked,
+        conn,
+        col_gc,
+        pix,
+        &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, color.into())]
+    );
+
+    // Fill the pixmap with the GC color
+    xtry!(poly_fill_rectangle_checked, conn, pix, col_gc, &[Rectangle::new(0, 0, w, h)]);
+
+    // Free gc after filling the rectangle
+    xcb::free_gc(conn, col_gc);
+
+    Ok(())
+}
+
+// Render picture over a picture
+fn render_picture(
+    bar: &Bar,
+    tar_pict: u32,
+    w: u16,
+    src_pict: &Arc<Picture>,
     alignment: Alignment,
-    color: Option<u32>,
-    image: &Option<DynamicImage>,
 ) -> Result<()> {
     // Shorten bar variable names
-    let (conn, gc) = (&bar.conn, bar.gcontext);
+    let conn = &bar.conn;
 
-    if let Some(color) = color {
-        // Create a GC with the color
-        let col_gc = conn.generate_id();
-        xtry!(
-            create_gc_checked,
-            conn,
-            col_gc,
-            pix,
-            &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, color)]
-        );
+    // Get width and height of the picture
+    let pw = src_pict.geometry.width;
+    let ph = src_pict.geometry.height;
 
-        // Fill the pixmap with the GC color
-        xtry!(poly_fill_rectangle_checked, conn, pix, col_gc, &[Rectangle::new(0, 0, w, h)]);
+    // Get X position
+    let x = alignment.x_offset(w, pw);
 
-        // Free gc after filling the rectangle
-        xcb::free_gc(conn, col_gc);
-    }
-
-    // Copy image if there is an image
-    if let Some(ref image) = *image {
-        // Convert image to raw pixels
-        let data = util::convert_image(image);
-
-        // Get width and height of the image
-        let iw = image.width() as u16;
-        let ih = image.height() as u16;
-
-        // Get X position
-        let x = alignment.x_offset(w, iw);
-
-        // Put image on pixmap
-        xtry!(put_image_checked, conn, 2u8, pix, gc, iw, ih, x, 0, 0, 32, &data);
-    }
+    // Put image on pixmap
+    let op = xcb::render::PICT_OP_OVER as u8;
+    xtry!(@render composite_checked, conn, op, src_pict.xid, 0, tar_pict, 0, 0, 0, 0, x, 0, pw, ph);
 
     Ok(())
 }
@@ -205,49 +219,6 @@ fn xoffset_by_id(components: &[BarComponent], id: u32, new_width: u16, bar_width
             .map(|c| c.geometry.width)
             .sum::<u16>() as i16
     }
-}
-
-// Render text to a pixmap
-fn render_text(
-    conn: &Arc<xcb::Connection>,
-    screen: &xcb::Screen,
-    pixmap: u32,
-    width: u16,
-    height: u16,
-    font: &FontDescription,
-    text: &Text,
-) -> Result<()> {
-    // Create an xcb surface
-    let mut visualtype = find_visualtype32(screen).ok_or_else(|| ErrorKind::ScreenDepthError(()))?;
-    let surface = unsafe {
-        Surface::from_raw_full(cairo_sys::cairo_xcb_surface_create(
-            (conn.get_raw_conn() as *mut cairo_sys::xcb_connection_t),
-            pixmap,
-            (&mut visualtype.base as *mut xcb::ffi::xcb_visualtype_t)
-                as *mut cairo_sys::xcb_visualtype_t,
-            i32::from(width),
-            i32::from(height),
-        ))
-    };
-
-    // Create context and layout for drawing text
-    let context = Context::new(&surface);
-    let layout = layout(&context, &text.content, font);
-
-    // Set font color
-    let color = text.color.unwrap(); // This is always Some
-    context.set_source_rgba(color.0, color.1, color.2, color.3);
-
-    // Center text horizontally and vertically
-    let (text_width, text_height) = layout.get_pixel_size();
-    let text_y = (f64::from(height) - f64::from(text_height)) / 2.;
-    let text_x = f64::from(text.alignment.x_offset(width, text_width as u16));
-    context.move_to(text_x, text_y + text.yoffset.unwrap()); // yoffset is always Some
-
-    // Display text
-    context.show_pango_layout(&layout);
-
-    Ok(())
 }
 
 // Clear the old area before redrawing
@@ -286,9 +257,8 @@ fn clear_old_components(
 fn calculate_width(
     bar: &Bar,
     width: Width,
-    background: &Option<Background>,
-    text: &Option<Text>,
-    font: &FontDescription,
+    background: &Background,
+    foreground: &Option<Foreground>,
 ) -> u16 {
     // Just return fixed if it's some
     if let Some(fixed) = width.fixed {
@@ -299,21 +269,18 @@ fn calculate_width(
     let mut w = width.min;
 
     // Set to background width if it isn't smaller than min
-    if let Some(ref background) = *background {
-        if let Some(ref image) = background.image {
-            // Check if bg width should be ignored
-            if !width.ignore_background {
-                w = cmp::max(w, image.width() as u16);
-            }
+    if let Some(ref image) = background.image {
+        // Check if bg width should be ignored
+        if !width.ignore_background {
+            w = cmp::max(w, image.arc.geometry.width);
         }
     }
 
     // Set to text width if it isn't smaller than min
-    if let Some(ref text) = *text {
+    if let Some(ref foreground) = *foreground {
         // Check if text width should be ignored
-        if !width.ignore_text {
-            let text_width = text_width(&text.content, font).unwrap_or(0);
-            w = cmp::max(w, text_width);
+        if !width.ignore_foreground {
+            w = cmp::max(w, foreground.text.arc.geometry.width);
         }
     }
 
@@ -324,41 +291,4 @@ fn calculate_width(
     w = cmp::min(w, width.max);
 
     w
-}
-
-// Get the width text will have with the specified font
-pub fn text_width(text: &str, font: &FontDescription) -> Result<(u16)> {
-    // Create a dummy surface and context
-    let surface = ImageSurface::create(Format::ARgb32, 0, 0)
-        .map_err(|e| format!("Unable to create dummy layout for font size: {:?}", e))?;
-    let context = Context::new(&surface);
-
-    // Create the layout
-    let layout = layout(&context, text, font);
-
-    // Get the width of the text
-    let width = layout.get_pixel_size().0;
-
-    Ok(width as u16)
-}
-
-// Create a layout with the font and text
-fn layout(context: &Context, text: &str, font: &FontDescription) -> Layout {
-    let layout = context.create_pango_layout();
-    layout.set_text(text);
-    layout.set_font_description(font);
-    layout
-}
-
-// Get the first available visualtype with 32 bit depth
-fn find_visualtype32<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
-    for depth in screen.allowed_depths() {
-        if depth.depth() == 32 {
-            let visual = depth.visuals().next();
-            if let Some(visual) = visual {
-                return Some(visual);
-            }
-        }
-    }
-    None
 }

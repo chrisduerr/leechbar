@@ -1,6 +1,6 @@
-use image::{DynamicImage, GenericImage, Rgba};
+use image::DynamicImage;
+use color::Color;
 use error::*;
-use util;
 use bar;
 
 /// The bar configuration.
@@ -30,8 +30,8 @@ use bar;
 /// [`spawn`]: struct.BarBuilder.html#method.spawn
 pub struct BarBuilder {
     pub(crate) background_image: Option<DynamicImage>,
-    pub(crate) background_color: u32,
-    pub(crate) foreground_color: (f64, f64, f64, f64),
+    pub(crate) background_color: Color,
+    pub(crate) foreground_color: Color,
     pub(crate) output: Option<String>,
     pub(crate) font: Option<String>,
     pub(crate) name: String,
@@ -48,26 +48,17 @@ impl BarBuilder {
 
     /// Change the default foreground color.
     ///
-    /// This takes the rgba values of the color as an ingeger from 0 to 255.
-    ///
     /// **Default:** White (255, 255, 255, 255)
-    pub fn foreground_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
-        self.foreground_color = (
-            f64::from(red) / 255.,
-            f64::from(green) / 255.,
-            f64::from(blue) / 255.,
-            f64::from(alpha) / 255.,
-        );
+    pub fn foreground_color(mut self, color: Color) -> Self {
+        self.foreground_color = color;
         self
     }
 
     /// Change the default background color.
     ///
-    /// This takes the rgba values of the color as an ingeger from 0 to 255.
-    ///
     /// **Default:** Black (0, 0, 0, 255)
-    pub fn background_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> Self {
-        self.background_color = util::color(red, green, blue, alpha);
+    pub fn background_color(mut self, color: Color) -> Self {
+        self.background_color = color;
         self
     }
 
@@ -147,16 +138,10 @@ impl BarBuilder {
 
 impl Default for BarBuilder {
     fn default() -> Self {
-        let pixel = Rgba {
-            data: [0, 0, 0, 255],
-        };
-        let mut background = DynamicImage::new_rgba8(1, 1);
-        background.put_pixel(0, 0, pixel);
-
         BarBuilder {
             background_image: None,
-            background_color: 0,
-            foreground_color: (1., 1., 1., 1.),
+            background_color: Color::new(0, 0, 0, 255),
+            foreground_color: Color::new(255, 255, 255, 255),
             output: None,
             name: "leechbar".into(),
             font: None,

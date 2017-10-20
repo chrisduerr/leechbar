@@ -100,15 +100,30 @@ extern crate xcb;
 
 #[macro_use]
 mod macros;
-pub mod error;
 mod bar_component;
+mod background;
+mod foreground;
 mod component;
+mod alignment;
+pub mod error;
 mod geometry;
+mod picture;
 mod builder;
 mod render;
+mod width;
+mod color;
 mod util;
+mod text;
 mod bar;
+mod img;
 
+pub use foreground::Foreground;
+pub use background::Background;
+pub use component::Component;
+pub use alignment::Alignment;
 pub use builder::BarBuilder;
-pub use component::*;
+pub use color::Color;
+pub use width::Width;
+pub use text::Text;
+pub use img::Image;
 pub use bar::Bar;

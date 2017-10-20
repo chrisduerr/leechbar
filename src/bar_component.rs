@@ -1,14 +1,68 @@
+use background::Background;
+use foreground::Foreground;
+use alignment::Alignment;
 use geometry::Geometry;
 use std::sync::Arc;
+use color::Color;
 use bar::Bar;
 use error::*;
 use xcb;
 
+#[derive(PartialEq, Clone, Copy)]
+pub struct BarComponentCache {
+    picture: u32,
+    yoffset: f64,
+    color: Option<Color>,
+    alignment: Alignment,
+}
+
+impl BarComponentCache {
+    // Create an empty cache
+    pub fn new() -> Self {
+        Self {
+            picture: 0,
+            yoffset: 0.,
+            color: None,
+            alignment: Alignment::CENTER,
+        }
+    }
+
+    // Create a cache form a background
+    pub fn new_bg(background: &Background) -> Self {
+        Self {
+            yoffset: 0.,
+            color: background.color,
+            alignment: background.alignment,
+            picture: background.image.as_ref().map_or(0, |i| i.arc.xid),
+        }
+    }
+
+    // Create a cache from a foreground
+    pub fn new_fg(foreground: &Foreground) -> Self {
+        Self {
+            color: None,
+            alignment: foreground.alignment,
+            picture: foreground.text.arc.xid,
+            // Should always be `Some`, just making sure
+            yoffset: foreground.yoffset.unwrap_or(0.),
+        }
+    }
+}
+
+impl Default for BarComponentCache {
+    fn default() -> Self {
+        BarComponentCache::new()
+    }
+}
+
 // A component currently stored in the bar
 pub struct BarComponent {
     pub id: u32,
+    pub dirty: bool,
     pub picture: u32,
     pub geometry: Geometry,
+    pub bg_cache: BarComponentCache,
+    pub fg_cache: BarComponentCache,
 }
 
 impl BarComponent {
@@ -16,9 +70,12 @@ impl BarComponent {
     pub fn new(id: u32, conn: &Arc<xcb::Connection>) -> Self {
         let picture = conn.generate_id();
         BarComponent {
-            geometry: Geometry::default(),
-            picture,
             id,
+            picture,
+            dirty: false,
+            geometry: Geometry::default(),
+            bg_cache: BarComponentCache::new(),
+            fg_cache: BarComponentCache::new(),
         }
     }
 
@@ -55,6 +112,10 @@ impl BarComponent {
         xtry!(@render composite_checked, &bar.conn, op, self.picture, 0, tmp_pict, 0, 0, 0, 0, 0, 0, w, h);
 
         bar.composite_picture(tmp_pict, 0, x, w, h)?;
+
+        // Free the picture and pixmap
+        xcb::free_pixmap(&bar.conn, tmp_pix);
+        xcb::render::free_picture(&bar.conn, tmp_pict);
         Ok(())
     }
 }

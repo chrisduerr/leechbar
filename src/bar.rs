@@ -2,14 +2,15 @@ use image::{DynamicImage, GenericImage};
 use xcb::{self, randr, Rectangle};
 use bar_component::BarComponent;
 use std::sync::{Arc, Mutex};
-use pango::FontDescription;
 use component::Component;
 use builder::BarBuilder;
 use geometry::Geometry;
+use color::Color;
 use std::thread;
 use error::*;
 use render;
 use util;
+use img;
 
 /// The main bar.
 #[derive(Clone)]
@@ -24,7 +25,7 @@ pub struct Bar {
     pub(crate) components: Arc<Mutex<Vec<BarComponent>>>,
     pub(crate) format32: u32,
     pub(crate) format24: u32,
-    pub(crate) color: (f64, f64, f64, f64),
+    pub(crate) color: Color,
     pub(crate) component_ids: [u32; 3],
     pub(crate) text_yoffset: f64,
 }
@@ -75,15 +76,9 @@ impl Bar {
             .map_err(|e| ErrorKind::XError(format!("Unable to create window picture: {}", e)))?;
 
         // Create background picture
-        let background = create_background_picture(
-            &conn,
-            window,
-            gcontext,
-            format32,
-            geometry,
-            builder.background_color,
-            builder.background_image,
-        )?;
+        let (bg_col, bg_img) = (builder.background_color, builder.background_image);
+        let background =
+            create_background_picture(&conn, window, gcontext, format32, geometry, bg_col, bg_img)?;
 
         // Create an empty skeleton bar
         Ok(Bar {
@@ -147,16 +142,9 @@ impl Bar {
         // Start bar thread
         let bar = self.clone();
         thread::spawn(move || {
-            // Font has to be created for every thread because `FontDescription` is not `Send`
-            let font = if let Some(ref font) = bar.font {
-                FontDescription::from_string(font)
-            } else {
-                FontDescription::new()
-            };
-
             // Start component loop
             loop {
-                let res = render::render(&bar, &mut component, font.clone(), id);
+                let res = render::render(&bar, &mut component, id);
                 err!("{}", res);
                 match component.timeout() {
                     Some(timeout) => thread::sleep(timeout),
@@ -315,7 +303,7 @@ fn primary_screen_info(
 fn create_window(
     conn: &Arc<xcb::Connection>,
     geometry: Geometry,
-    background_color: u32,
+    background_color: Color,
     window_title: &[u8],
 ) -> Result<u32> {
     // Get screen of connection
@@ -336,7 +324,7 @@ fn create_window(
         xcb::WINDOW_CLASS_INPUT_OUTPUT as u16,
         screen.root_visual(),
         &[
-            (xcb::CW_BACK_PIXEL, background_color),
+            (xcb::CW_BACK_PIXEL, background_color.into()),
             (
                 xcb::CW_EVENT_MASK,
                 xcb::EVENT_MASK_EXPOSURE | xcb::EVENT_MASK_KEY_PRESS | xcb::EVENT_MASK_ENTER_WINDOW,
@@ -365,7 +353,7 @@ fn create_background_picture(
     gcontext: u32,
     format32: u32,
     geometry: Geometry,
-    bg_color: u32,
+    bg_color: Color,
     background_image: Option<DynamicImage>,
 ) -> Result<u32> {
     // Create shorthands for geometry
@@ -385,7 +373,7 @@ fn create_background_picture(
         conn,
         col_gc,
         pix,
-        &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, bg_color)]
+        &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, bg_color.into())]
     );
 
     // Fill the pixmap with the GC color
@@ -401,7 +389,7 @@ fn create_background_picture(
         let h = background_image.height() as u16;
 
         // Canvert the image to the right format
-        let data = util::convert_image(&background_image);
+        let data = img::convert_image(&background_image);
 
         // Copy image data to pixmap
         xcb::put_image_checked(conn, 2u8, pix, gcontext, w, h, 0, 0, 0, 32, &data)
