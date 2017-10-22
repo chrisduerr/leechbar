@@ -4,7 +4,7 @@ use alignment::Alignment;
 use std::time::Duration;
 use width::Width;
 
-/// Trait for creating custom components
+/// Trait for creating custom components.
 ///
 /// This trait is used for the [`Bar::add`] method. You can use it to implement custom components
 /// that change at runtime. Each method takes `&mut self` and is called whenever the component
@@ -13,7 +13,7 @@ use width::Width;
 /// # Examples
 ///
 /// ```rust
-/// use leechbar::{Component, Text, Background, Alignment, Width};
+/// use leechbar::{Component, Background, Foreground, Alignment, Width};
 /// use std::time::Duration;
 ///
 /// struct MyComponent;
@@ -21,13 +21,13 @@ use width::Width;
 /// // You can define your own custom components like this
 /// impl Component for MyComponent {
 ///     // No background image
-///     fn background(&mut self) -> Option<Background> {
-///         None
+///     fn background(&mut self) -> Background {
+///         Background::new()
 ///     }
 ///
-///     // Print "Hello, World!" as text
-///     fn text(&mut self) -> Option<Text> {
-///         Some(Text::new(String::from("Hello, World")))
+///     // Do not print any text
+///     fn foreground(&mut self) -> Option<Foreground> {
+///         None
 ///     }
 ///
 ///     // Put this element at the center of the bar
@@ -44,12 +44,8 @@ use width::Width;
 ///     fn width(&mut self) -> Width {
 ///         Width::new()
 ///     }
-///
-///     // Ignore all events
-///     fn event(&mut self) {}
 /// }
 ///
-/// // Create a new component
 /// let component = MyComponent;
 /// ```
 ///
@@ -67,6 +63,4 @@ pub trait Component {
     /// The polling rate for this component. This is the time between redrawing the component.
     /// Use `None` for drawing this component once.
     fn timeout(&mut self) -> Option<Duration>;
-    /// X.Org events. This is not implemented yet.
-    fn event(&mut self); // TODO: Create event type
 }

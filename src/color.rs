@@ -8,6 +8,18 @@ pub struct Color {
 }
 
 impl Color {
+    /// Create a new color.
+    /// This takes the RGBA values of the red, green, blue and alpha channel as a range from 0 to
+    /// 255.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Color;
+    ///
+    /// // Create an opaque pink
+    /// let color = Color::new(255, 0, 255, 255);
+    /// ```
     pub fn new(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
         Self {
             red,
@@ -18,7 +30,7 @@ impl Color {
     }
 
     // Change from 0..255 to 0..1
-    pub fn as_fractions(&self) -> (f64, f64, f64, f64) {
+    pub(crate) fn as_fractions(&self) -> (f64, f64, f64, f64) {
         (
             f64::from(self.red) / 255.,
             f64::from(self.green) / 255.,

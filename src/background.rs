@@ -9,9 +9,10 @@ use img::Image;
 /// # Examples
 ///
 /// ```rust
-/// use leechbar::{Alignment, Background};
+/// use leechbar::{Alignment, Background, Color};
 ///
-/// let bg = Background::new_color(255, 0, 255, 255)
+/// let bg = Background::new()
+///                     .color(Color::new(255, 0, 255, 255))
 ///                     .alignment(Alignment::CENTER);
 /// ```
 #[derive(Clone)]

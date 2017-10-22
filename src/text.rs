@@ -11,13 +11,30 @@ use error::*;
 use util;
 use xcb;
 
+/// A cached text.
+///
+/// This creates a text that is cached on the X server. Keeping this around instead of moving it
+/// will usually lead to a lower CPU consumption but slightly increase the memory usage of the X
+/// server.
 #[derive(Clone)]
 pub struct Text {
     pub(crate) arc: Arc<Picture>,
 }
 
 impl Text {
-    // Render text to a pixmap
+    /// Create a new cached text.
+    ///
+    /// This takes an optional font and color, if these are not set it will use the default font
+    /// and color of the bar.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use leechbar::{Text, BarBuilder};
+    ///
+    /// let bar = BarBuilder::new().spawn().unwrap();
+    /// let text = Text::new(&bar, "Hello, World", None, None).unwrap();
+    /// ```
     pub fn new(
         bar: &Bar,
         content: &str,

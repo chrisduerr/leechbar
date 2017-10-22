@@ -44,8 +44,6 @@ impl Component for ImageComponent {
     fn width(&mut self) -> Width {
         Width::new()
     }
-
-    fn event(&mut self) {}
 }
 
 fn main() {

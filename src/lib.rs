@@ -23,11 +23,11 @@
 //! itself. This is done using the [`BarBuilder`] struct.
 //!
 //! ```rust,no_run
-//! use leechbar::BarBuilder;
+//! use leechbar::{BarBuilder, Color};
 //!
 //! // All method calls that take parameters are optional
 //! BarBuilder::new()
-//!     .background_color(255, 0, 255, 255)
+//!     .background_color(Color::new(255, 0, 255, 255))
 //!     .font("Fira Mono Medium 14")
 //!     .output("DVI-1")
 //!     .height(30)
@@ -39,21 +39,24 @@
 //! bar. This is a little more complicated, because you need to implement the [`Component`] trait.
 //!
 //! ```rust,no_run
-//! use leechbar::{BarBuilder, Component, Text, Background, Alignment, Width};
+//! use leechbar::{Bar, BarBuilder, Component, Text, Background, Foreground, Alignment, Width};
 //! use std::time::Duration;
 //!
-//! struct MyComponent;
+//! struct MyComponent {
+//!     bar: Bar,
+//! }
 //!
 //! // You can define your own custom components like this
 //! impl Component for MyComponent {
 //!     // No background image
-//!     fn background(&mut self) -> Option<Background> {
-//!         None
+//!     fn background(&mut self) -> Background {
+//!         Background::new()
 //!     }
 //!
 //!     // Print "Hello, World!" as text
-//!     fn text(&mut self) -> Option<Text> {
-//!         Some(Text::new(String::from("Hello, World")))
+//!     fn foreground(&mut self) -> Option<Foreground> {
+//!         let text = Text::new(&self.bar, "Hello, World", None, None).unwrap();
+//!         Some(Foreground::new(text))
 //!     }
 //!
 //!     // Put this element at the center of the bar
@@ -70,19 +73,37 @@
 //!     fn width(&mut self) -> Width {
 //!         Width::new()
 //!     }
-//!
-//!     // Ignore all events
-//!     fn event(&mut self) {}
 //! }
 //!
 //! // Create a new bar
 //! let mut bar = BarBuilder::new().spawn().unwrap();
+//!
+//! // Create an instance of the component
+//! let comp = MyComponent { bar: bar.clone() };
+//!
 //! // Add an instance of your component to your bar
-//! bar.add(MyComponent);
+//! bar.add(comp);
+//!
 //! // Start the event loop that handles all X events
 //! bar.start_event_loop();
 //! ```
 //!
+//! # Logging
+//!
+//! This crate supports [`log`], if you want to enable this logging, you can add [`env_logger`] to
+//! your binary.
+//!
+//! ```rust
+//! extern crate env_logger;
+//!
+//! fn main() {
+//!     env_logger::init().unwrap();
+//!     // All the cool bar stuff
+//! }
+//! ```
+//!
+//! [`log`]: https://docs.rs/log
+//! [`env_logger`]: http://rust-lang-nursery.github.io/log/env_logger
 //! [`BarBuilder`]: struct.BarBuilder.html
 //! [`Component`]: component/trait.Component.html
 #![recursion_limit = "1024"]

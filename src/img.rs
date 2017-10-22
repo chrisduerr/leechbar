@@ -6,14 +6,19 @@ use error::*;
 use bar::Bar;
 use xcb;
 
+/// A cached image.
+///
+/// This creates an image that is cached on the X server. Keeping this around instead of moving it
+/// will usually lead to a lower CPU consumption but slightly increase the memory usage of the X
+/// server.
 #[derive(Clone)]
 pub struct Image {
     pub(crate) arc: Arc<Picture>,
 }
 
 impl Image {
-    /// Create a new picture from an
-    /// [`image::DynamicImage`](https://docs.rs/image/0.17.0/image/enum.DynamicImage.html).
+    /// Create a new image from a
+    /// [`DynamicImage`](https://docs.rs/image/0.17.0/image/enum.DynamicImage.html).
     pub fn new(bar: &Bar, image: &DynamicImage) -> Result<Self> {
         let conn = Arc::clone(&bar.conn);
         let (window, gcontext, format32) = (bar.window, bar.gcontext, bar.format32);

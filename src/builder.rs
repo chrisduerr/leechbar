@@ -13,12 +13,12 @@ use bar;
 /// Basic usage:
 ///
 /// ```rust
-/// use leechbar::BarBuilder;
+/// use leechbar::{BarBuilder, Color};
 ///
 /// // All method calls that take parameters are optional
 /// BarBuilder::new()
-///     .background_color(255, 0, 255, 255)
-///     .foreground_color(0, 255, 0, 255)
+///     .background_color(Color::new(255, 0, 255, 255))
+///     .foreground_color(Color::new(0, 255, 0, 255))
 ///     .font("Fira Mono Medium 14")
 ///     .output("DVI-1")
 ///     .name("MyBar")

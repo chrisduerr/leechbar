@@ -1,19 +1,19 @@
 use alignment::Alignment;
 use text::Text;
 
-/// Text of a component.
+/// Foreground of a component.
 ///
-/// This is used for displaying text on the bar.
+/// The foreground of a component. This is used for setting the text, the text alignment and the
+/// vertical text offset.
 ///
 /// # Examples
 ///
-/// ```rust
-/// use leechbar::{Text, Alignment};
+/// ```rust,no_run
+/// use leechbar::{Foreground, Text, BarBuilder};
 ///
-/// let text = Text::new("Hello, World!")
-///                 .font("Fira Sans Medium 11")
-///                 .color(255, 0, 255, 255)
-///                 .alignment(Alignment::LEFT);
+/// let bar = BarBuilder::new().spawn().unwrap();
+/// let text = Text::new(&bar, "Hello, World", None, None).unwrap();
+/// let fg = Foreground::new(text).yoffset(3.5);
 /// ```
 #[derive(Clone)]
 pub struct Foreground {

@@ -33,9 +33,6 @@ impl Component for MyComponent {
     fn width(&mut self) -> Width {
         Width::new()
     }
-
-    // Ignore all events
-    fn event(&mut self) {}
 }
 
 fn main() {
