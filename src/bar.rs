@@ -102,14 +102,17 @@ impl Bar {
     ///
     /// It **must** be called after adding all your components.
     pub fn start_event_loop(&self) {
+        info!("Started event loop");
         loop {
             if let Some(event) = self.conn.wait_for_event() {
                 let r = event.response_type();
                 if r == xcb::EXPOSE {
+                    debug!("Received expose event, redrawing…");
+
                     // Composite bg over self again if the image exists
                     let (w, h) = (self.geometry.width, self.geometry.height);
                     let res = self.composite_picture(self.background, 0, 0, w, h);
-                    err!("Unable to composite background: {}", res);
+                    err!(res, "Unable to composite background");
 
                     // Redraw components
                     let components = self.components.lock().unwrap();
@@ -117,11 +120,12 @@ impl Bar {
                         let geometry = component.geometry;
                         if geometry.width > 0 && geometry.height > 0 {
                             let res = component.redraw(self);
-                            err!("Unable to redraw component: {}", res);
+                            err!(res, "Unable to redraw component");
                         }
                     }
                 } else {
                     // TODO: Handle mouse events
+                    debug!("Received event: {}", r);
                 }
             }
         }
@@ -131,6 +135,8 @@ impl Bar {
     pub fn add<T: 'static + Component + Send>(&mut self, mut component: T) {
         // Permanent component id
         let id = component.alignment().id(&mut self.component_ids);
+
+        debug!("Adding component {}", id);
 
         // Register the component
         let bar_component = BarComponent::new(id, &self.conn);
@@ -145,7 +151,7 @@ impl Bar {
             // Start component loop
             loop {
                 let res = render::render(&bar, &mut component, id);
-                err!("{}", res);
+                err!(res, "Component {}", id);
                 match component.timeout() {
                     Some(timeout) => thread::sleep(timeout),
                     None => break,
@@ -342,6 +348,8 @@ fn create_window(
 
     // Request the WM to manage our window.
     xcb::map_window(conn, window);
+
+    info!("Created bar window");
 
     Ok(window)
 }

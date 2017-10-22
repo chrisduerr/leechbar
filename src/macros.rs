@@ -34,13 +34,20 @@ macro_rules! set_prop {
 
 // Log a result with the error log level
 macro_rules! err {
-    ($msg:expr, $res:expr) => {
+    ($res:expr, $msg:expr, $($args:expr),*) => {
         {
             if let Err(err) = $res {
-                error!($msg, err);
+                error!(concat!($msg, ": {}"), $($args),*, err);
             }
         }
     };
+    ($res:expr, $msg:expr) => {
+        {
+            if let Err(err) = $res {
+                error!(concat!($msg, ": {}"), err);
+            }
+        }
+    }
 }
 
 // Attempts an XCB operation and returns an error when it fails

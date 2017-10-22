@@ -22,3 +22,6 @@ pangocairo = "0.2.0"
 pango = "0.2.0"
 image = "0.16.0"
 log = "0.3.8"
+
+[dev-dependencies]
+env_logger = "0.4.3"

@@ -1,3 +1,4 @@
+extern crate env_logger;
 extern crate image;
 extern crate leechbar;
 
@@ -48,6 +49,9 @@ impl Component for ImageComponent {
 }
 
 fn main() {
+    // Start the logger
+    env_logger::init().unwrap();
+
     let image = image::open("./examples/testimages/bg.png").unwrap();
     let mut bar = BarBuilder::new()
         .foreground_color(Color::new(0, 0, 0, 255))

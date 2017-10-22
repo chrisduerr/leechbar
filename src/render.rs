@@ -51,6 +51,7 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
         let old_fg_cache = components[comp_index].fg_cache;
         let old_bg_cache = components[comp_index].bg_cache;
         if new_bg_cache != old_bg_cache || new_fg_cache != old_fg_cache {
+            debug!("Recomposing {}…", id);
             update_picture(bar, &mut components[comp_index], &background, &foreground, w, h)?;
         }
 
@@ -84,6 +85,7 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
             // Don't redraw empty components
             if w > 0 && h > 0 && (width_change != 0 || component.id == id) {
                 // Redraw the component
+                debug!("Redrawing {}…", component.id);
                 component.redraw(bar)?;
             }
             x += w as i16;

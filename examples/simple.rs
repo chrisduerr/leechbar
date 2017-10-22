@@ -1,4 +1,6 @@
+extern crate env_logger;
 extern crate leechbar;
+
 use leechbar::{Alignment, Background, BarBuilder, Component, Foreground, Text, Width};
 use std::time::Duration;
 
@@ -37,6 +39,9 @@ impl Component for MyComponent {
 }
 
 fn main() {
+    // Start the logger
+    env_logger::init().unwrap();
+
     // Create a new bar
     let mut bar = BarBuilder::new().spawn().unwrap();
 
