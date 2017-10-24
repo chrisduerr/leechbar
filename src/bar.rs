@@ -150,8 +150,12 @@ impl Bar {
         thread::spawn(move || {
             // Start component loop
             loop {
-                let res = render::render(&bar, &mut component, id);
-                err!(res, "Component {}", id);
+                // Check if component should be redrawn
+                if component.update() {
+                    let res = render::render(&bar, &mut component, id);
+                    err!(res, "Component {}", id);
+                }
+
                 match component.timeout() {
                     Some(timeout) => thread::sleep(timeout),
                     None => break,

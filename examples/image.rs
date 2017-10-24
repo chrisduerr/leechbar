@@ -2,8 +2,7 @@ extern crate env_logger;
 extern crate image;
 extern crate leechbar;
 
-use leechbar::{Alignment, Background, Bar, BarBuilder, Color, Component, Foreground, Image, Text,
-               Width};
+use leechbar::{Alignment, Background, Bar, BarBuilder, Color, Component, Foreground, Image, Text};
 use std::time::Duration;
 use std::ops::Range;
 
@@ -16,28 +15,29 @@ struct ImageComponent {
 }
 
 impl Component for ImageComponent {
-    fn background(&mut self) -> Background {
-        let bg = Background::new().image(self.images[self.index].clone());
-
+    fn update(&mut self) -> bool {
         self.index += 1;
         if self.index >= self.images.len() {
             self.index = 0;
         }
-
-        bg
+        true
     }
 
-    fn alignment(&mut self) -> Alignment {
+    fn background(&self) -> Background {
+        Background::new().image(self.images[self.index].clone())
+    }
+
+    fn alignment(&self) -> Alignment {
         self.alignment
     }
 
-    fn foreground(&mut self) -> Option<Foreground> {
+    fn foreground(&self) -> Option<Foreground> {
         let content = format!("Hello, World! {}", self.index);
         let text = Text::new(&self.bar, &content, None, None).unwrap();
         Some(Foreground::new(&text))
     }
 
-    fn timeout(&mut self) -> Option<Duration> {
+    fn timeout(&self) -> Option<Duration> {
         Some(Duration::from_millis(self.timeout))
     }
 }

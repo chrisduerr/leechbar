@@ -2,7 +2,6 @@ extern crate env_logger;
 extern crate leechbar;
 
 use leechbar::{BarBuilder, Component, Foreground, Text};
-use std::time::Duration;
 
 struct MyComponent {
     text: Text,
@@ -10,7 +9,7 @@ struct MyComponent {
 
 impl Component for MyComponent {
     // Print "Hello, World!" as text
-    fn foreground(&mut self) -> Option<Foreground> {
+    fn foreground(&self) -> Option<Foreground> {
         Some(Foreground::new(&self.text))
     }
 }

@@ -23,12 +23,6 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
     let background = component.background();
     let mut foreground = component.foreground();
 
-    // Skip if component is not supposed to be redrawn
-    if !component.redraw() {
-        debug!("Skipped redrawing component {}", id);
-        return Ok(());
-    }
-
     // Set yoffset of foreground if it is none
     if let Some(ref mut foreground) = foreground {
         if foreground.yoffset.is_none() {
