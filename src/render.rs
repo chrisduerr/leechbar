@@ -23,6 +23,12 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
     let background = component.background();
     let mut foreground = component.foreground();
 
+    // Skip if component is not supposed to be redrawn
+    if !component.redraw() {
+        debug!("Skipped redrawing component {}", id);
+        return Ok(());
+    }
+
     // Set yoffset of foreground if it is none
     if let Some(ref mut foreground) = foreground {
         if foreground.yoffset.is_none() {
@@ -40,6 +46,13 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
         // Get the X offset of the item
         let mut x = xoffset_by_id(&components, id, w, bar.geometry.width);
 
+        // Get all components that need to be redrawn
+        components.sort_by(|a, b| a.id.cmp(&b.id));
+        let mut components = components
+            .iter_mut()
+            .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
+            .collect::<Vec<&mut BarComponent>>();
+
         // Get the index of the current component
         let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
 
@@ -54,13 +67,6 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
             debug!("Recomposing {}…", id);
             update_picture(bar, &mut components[comp_index], &background, &foreground, w, h)?;
         }
-
-        // Get all components that need to be redrawn
-        components.sort_by(|a, b| a.id.cmp(&b.id));
-        let components = components
-            .iter_mut()
-            .filter(|c| (c.id % 3 != 0 || c.id >= id) && c.id % 3 == id % 3)
-            .collect::<Vec<&mut BarComponent>>();
 
         // Clear the difference to old components
         let width_change = i32::from(components[comp_index].geometry.width) - i32::from(w);
@@ -129,12 +135,13 @@ fn update_picture(
 
     // Render the background image if it's not `None`
     if let Some(ref image) = background.image {
-        render_picture(bar, pict, w, &image.arc, background.alignment)?;
+        render_picture(bar, pict, w, &image.arc, background.alignment, 0)?;
     }
 
     // Render the foreground text
     if let Some(ref foreground) = *foreground {
-        render_picture(bar, pict, w, &foreground.text.arc, foreground.alignment)?
+        let yoffset = foreground.yoffset.unwrap_or(bar.text_yoffset);
+        render_picture(bar, pict, w, &foreground.text.arc, foreground.alignment, yoffset)?
     }
 
     // Free pixmap
@@ -174,6 +181,7 @@ fn render_picture(
     w: u16,
     src_pict: &Arc<Picture>,
     alignment: Alignment,
+    yoffset: i16,
 ) -> Result<()> {
     // Shorten bar variable names
     let conn = &bar.conn;
@@ -187,7 +195,7 @@ fn render_picture(
 
     // Put image on pixmap
     let op = xcb::render::PICT_OP_OVER as u8;
-    xtry!(@render composite_checked, conn, op, src_pict.xid, 0, tar_pict, 0, 0, 0, 0, x, 0, pw, ph);
+    xtry!(@render composite_checked, conn, op, src_pict.xid, 0, tar_pict, 0, 0, 0, 0, x, yoffset, pw, ph);
 
     Ok(())
 }

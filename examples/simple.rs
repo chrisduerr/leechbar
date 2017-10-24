@@ -1,7 +1,7 @@
 extern crate env_logger;
 extern crate leechbar;
 
-use leechbar::{Alignment, Background, BarBuilder, Component, Foreground, Text, Width};
+use leechbar::{BarBuilder, Component, Foreground, Text};
 use std::time::Duration;
 
 struct MyComponent {
@@ -9,29 +9,9 @@ struct MyComponent {
 }
 
 impl Component for MyComponent {
-    // No background image
-    fn background(&mut self) -> Background {
-        Background::new()
-    }
-
     // Print "Hello, World!" as text
     fn foreground(&mut self) -> Option<Foreground> {
         Some(Foreground::new(&self.text))
-    }
-
-    // First element on the left side
-    fn alignment(&mut self) -> Alignment {
-        Alignment::CENTER
-    }
-
-    // Do this only once
-    fn timeout(&mut self) -> Option<Duration> {
-        None
-    }
-
-    // No width restrictions
-    fn width(&mut self) -> Width {
-        Width::new()
     }
 }
 

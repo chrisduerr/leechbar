@@ -27,6 +27,11 @@ impl Text {
     /// This takes an optional font and color, if these are not set it will use the default font
     /// and color of the bar.
     ///
+    /// # Errors
+    ///
+    /// This returns an error when the `content` parameter is an empty string slice, or when an
+    /// X.Org request failed.
+    ///
     /// # Examples
     ///
     /// ```rust,no_run
@@ -41,6 +46,12 @@ impl Text {
         font: Option<&FontDescription>,
         color: Option<Color>,
     ) -> Result<Self> {
+        // It's not possible to create an empty text
+        // This returns an error if it is attempted
+        if content.is_empty() {
+            return Err("Text content empty".into());
+        }
+
         // Get the font
         let lifetime_elongater;
         let font = if let Some(font) = font {

@@ -13,13 +13,13 @@ use text::Text;
 ///
 /// let bar = BarBuilder::new().spawn().unwrap();
 /// let text = Text::new(&bar, "Hello, World", None, None).unwrap();
-/// let fg = Foreground::new(text).yoffset(3.5);
+/// let fg = Foreground::new(text).yoffset(3);
 /// ```
 #[derive(Clone)]
 pub struct Foreground {
     pub(crate) text: Text,
     pub(crate) alignment: Alignment,
-    pub(crate) yoffset: Option<f64>,
+    pub(crate) yoffset: Option<i16>,
 }
 
 impl Foreground {
@@ -43,7 +43,7 @@ impl Foreground {
     /// Offset the text vertically. Increasing this offset, moves the text down from the center.
     ///
     /// **Default:** Bar's vertical text offset.
-    pub fn yoffset(mut self, yoffset: f64) -> Self {
+    pub fn yoffset(mut self, yoffset: i16) -> Self {
         self.yoffset = Some(yoffset);
         self
     }

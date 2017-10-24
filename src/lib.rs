@@ -48,30 +48,10 @@
 //!
 //! // You can define your own custom components like this
 //! impl Component for MyComponent {
-//!     // No background image
-//!     fn background(&mut self) -> Background {
-//!         Background::new()
-//!     }
-//!
 //!     // Print "Hello, World!" as text
 //!     fn foreground(&mut self) -> Option<Foreground> {
 //!         let text = Text::new(&self.bar, "Hello, World", None, None).unwrap();
 //!         Some(Foreground::new(text))
-//!     }
-//!
-//!     // Put this element at the center of the bar
-//!     fn alignment(&mut self) -> Alignment {
-//!         Alignment::CENTER
-//!     }
-//!
-//!     // Do this only once
-//!     fn timeout(&mut self) -> Option<Duration> {
-//!         None
-//!     }
-//!
-//!     // No width restrictions
-//!     fn width(&mut self) -> Width {
-//!         Width::new()
 //!     }
 //! }
 //!

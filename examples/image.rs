@@ -40,10 +40,6 @@ impl Component for ImageComponent {
     fn timeout(&mut self) -> Option<Duration> {
         Some(Duration::from_millis(self.timeout))
     }
-
-    fn width(&mut self) -> Width {
-        Width::new()
-    }
 }
 
 fn main() {

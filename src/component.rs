@@ -44,6 +44,11 @@ use width::Width;
 ///     fn width(&mut self) -> Width {
 ///         Width::new()
 ///     }
+///
+///     // Always redraw the component
+///     fn redraw(&mut self) -> bool {
+///         true
+///     }
 /// }
 ///
 /// let component = MyComponent;
@@ -53,14 +58,49 @@ use width::Width;
 pub trait Component {
     /// The background of the component.
     /// Use `None` for no background.
-    fn background(&mut self) -> Background;
-    /// The alignment of the component.
-    fn alignment(&mut self) -> Alignment;
+    ///
+    /// **Default:** No background.
+    fn background(&mut self) -> Background {
+        Background::new()
+    }
+
     /// The text of the component.
-    fn foreground(&mut self) -> Option<Foreground>;
+    ///
+    /// **Default:** `None`, no foreground.
+    fn foreground(&mut self) -> Option<Foreground> {
+        None
+    }
+
+    /// The alignment of the component.
+    ///
+    /// **Default:** [`Alignment::CENTER`](enum.Alignment.html#variant.CENTER)
+    fn alignment(&mut self) -> Alignment {
+        Alignment::CENTER
+    }
+
     /// The width of the component.
-    fn width(&mut self) -> Width;
+    ///
+    /// **Default:** No width restrictions.
+    fn width(&mut self) -> Width {
+        Width::new()
+    }
+
     /// The polling rate for this component. This is the time between redrawing the component.
     /// Use `None` for drawing this component once.
-    fn timeout(&mut self) -> Option<Duration>;
+    ///
+    /// **Default:** `None`, draw component once.
+    fn timeout(&mut self) -> Option<Duration> {
+        None
+    }
+
+    /// Checked before redrawing a component.
+    /// Returning `false` will not redraw the component and might save resources.
+    ///
+    /// This is called after [`foreground`](#method.foreground),
+    /// [`background`](#method.background) and [`width`](#method.width).
+    ///
+    /// **Default:** Always redraw.
+    fn redraw(&mut self) -> bool {
+        true
+    }
 }

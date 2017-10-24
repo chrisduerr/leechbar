@@ -11,7 +11,7 @@ use xcb;
 #[derive(PartialEq, Clone, Copy)]
 pub struct BarComponentCache {
     picture: u32,
-    yoffset: f64,
+    yoffset: i16,
     color: Option<Color>,
     alignment: Alignment,
 }
@@ -21,7 +21,7 @@ impl BarComponentCache {
     pub fn new() -> Self {
         Self {
             picture: 0,
-            yoffset: 0.,
+            yoffset: 0,
             color: None,
             alignment: Alignment::CENTER,
         }
@@ -30,7 +30,7 @@ impl BarComponentCache {
     // Create a cache form a background
     pub fn new_bg(background: &Background) -> Self {
         Self {
-            yoffset: 0.,
+            yoffset: 0,
             color: background.color,
             alignment: background.alignment,
             picture: background.image.as_ref().map_or(0, |i| i.arc.xid),
@@ -44,7 +44,7 @@ impl BarComponentCache {
             alignment: foreground.alignment,
             picture: foreground.text.arc.xid,
             // Should always be `Some`, just making sure
-            yoffset: foreground.yoffset.unwrap_or(0.),
+            yoffset: foreground.yoffset.unwrap_or(0),
         }
     }
 }

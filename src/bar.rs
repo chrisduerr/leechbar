@@ -27,7 +27,7 @@ pub struct Bar {
     pub(crate) format24: u32,
     pub(crate) color: Color,
     pub(crate) component_ids: [u32; 3],
-    pub(crate) text_yoffset: f64,
+    pub(crate) text_yoffset: i16,
 }
 
 impl Bar {
