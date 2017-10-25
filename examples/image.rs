@@ -2,7 +2,8 @@ extern crate env_logger;
 extern crate image;
 extern crate leechbar;
 
-use leechbar::{Alignment, Background, Bar, BarBuilder, Color, Component, Foreground, Image, Text};
+use leechbar::{Alignment, Background, Bar, BarBuilder, Color, Component, Foreground, Image, Text,
+               Timeout};
 use std::time::Duration;
 use std::ops::Range;
 
@@ -37,8 +38,8 @@ impl Component for ImageComponent {
         Some(Foreground::new(&text))
     }
 
-    fn timeout(&self) -> Option<Duration> {
-        Some(Duration::from_millis(self.timeout))
+    fn timeout(&self) -> Option<Timeout> {
+        Some(Timeout::new_duration(Duration::from_millis(self.timeout)))
     }
 }
 

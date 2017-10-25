@@ -1,7 +1,7 @@
 use foreground::Foreground;
 use background::Background;
 use alignment::Alignment;
-use std::time::Duration;
+use timeout::Timeout;
 use width::Width;
 
 /// Trait for creating custom components.
@@ -13,8 +13,7 @@ use width::Width;
 /// # Examples
 ///
 /// ```rust
-/// use leechbar::{Component, Background, Foreground, Alignment, Width};
-/// use std::time::Duration;
+/// use leechbar::{Component, Background, Foreground, Alignment, Width, Timeout};
 ///
 /// struct MyComponent;
 ///
@@ -36,7 +35,7 @@ use width::Width;
 ///     }
 ///
 ///     // Do this only once
-///     fn timeout(&self) -> Option<Duration> {
+///     fn timeout(&self) -> Option<Timeout> {
 ///         None
 ///     }
 ///
@@ -96,11 +95,11 @@ pub trait Component {
         Width::new()
     }
 
-    /// The polling rate for this component. This is the time between redrawing the component.
+    /// The timeout for this component. This is the time between redrawing the component.
     /// Use `None` for drawing this component once.
     ///
     /// **Default:** `None`, draw component once.
-    fn timeout(&self) -> Option<Duration> {
+    fn timeout(&self) -> Option<Timeout> {
         None
     }
 }
