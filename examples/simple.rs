@@ -9,8 +9,8 @@ struct MyComponent {
 
 impl Component for MyComponent {
     // Print "Hello, World!" as text
-    fn foreground(&self) -> Option<Foreground> {
-        Some(Foreground::new(&self.text))
+    fn foreground(&self) -> Foreground {
+        self.text.clone().into()
     }
 }
 

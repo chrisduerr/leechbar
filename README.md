@@ -52,9 +52,8 @@ struct MyComponent {
 // You can define your own custom components like this
 impl Component for MyComponent {
     // Print "Hello, World!" as text
-    fn foreground(&self) -> Option<Foreground> {
-        let text = Text::new(&self.bar, "Hello, World", None, None).unwrap();
-        Some(Foreground::new(text))
+    fn foreground(&self) -> Foreground {
+        Text::new(&self.bar, "Hello, World", None, None).unwrap().into()
     }
 }
 

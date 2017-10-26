@@ -128,12 +128,6 @@ impl Text {
     }
 }
 
-impl<'a> From<&'a Text> for Text {
-    fn from(text: &Text) -> Text {
-        text.clone()
-    }
-}
-
 // Get the width text will have with the specified font
 fn text_width(text: &str, font: &FontDescription) -> Result<(u16)> {
     // Create a dummy surface and context

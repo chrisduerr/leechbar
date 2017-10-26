@@ -55,8 +55,28 @@ impl Background {
     }
 }
 
+impl From<Image> for Background {
+    fn from(image: Image) -> Background {
+        Background {
+            color: None,
+            image: Some(image),
+            alignment: Alignment::CENTER,
+        }
+    }
+}
+
+impl From<Color> for Background {
+    fn from(color: Color) -> Background {
+        Background {
+            image: None,
+            color: Some(color),
+            alignment: Alignment::CENTER,
+        }
+    }
+}
+
 impl Default for Background {
     fn default() -> Self {
-        Background::new()
+        Self::new()
     }
 }

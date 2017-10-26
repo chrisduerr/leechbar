@@ -25,17 +25,16 @@ impl Component for ImageComponent {
     }
 
     fn background(&self) -> Background {
-        Background::new().image(self.images[self.index].clone())
+        self.images[self.index].clone().into()
     }
 
     fn alignment(&self) -> Alignment {
         self.alignment
     }
 
-    fn foreground(&self) -> Option<Foreground> {
+    fn foreground(&self) -> Foreground {
         let content = format!("Hello, World! {}", self.index);
-        let text = Text::new(&self.bar, &content, None, None).unwrap();
-        Some(Foreground::new(&text))
+        Text::new(&self.bar, &content, None, None).unwrap().into()
     }
 
     fn timeout(&self) -> Option<Timeout> {

@@ -42,9 +42,9 @@ impl BarComponentCache {
         Self {
             color: None,
             alignment: foreground.alignment,
-            picture: foreground.text.arc.xid,
             // Should always be `Some`, just making sure
             yoffset: foreground.yoffset.unwrap_or(0),
+            picture: foreground.text.as_ref().map_or(0, |t| t.arc.xid),
         }
     }
 }

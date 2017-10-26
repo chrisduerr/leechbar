@@ -9,27 +9,38 @@ use text::Text;
 /// # Examples
 ///
 /// ```rust,no_run
-/// use leechbar::{Foreground, Text, BarBuilder};
+/// use leechbar::{Foreground, Text, BarBuilder, Alignment};
 ///
 /// let bar = BarBuilder::new().spawn().unwrap();
 /// let text = Text::new(&bar, "Hello, World", None, None).unwrap();
-/// let fg = Foreground::new(text).yoffset(3);
+/// let fg = Foreground::new()
+///                     .text(text)
+///                     .yoffset(3)
+///                     .alignment(Alignment::RIGHT);
 /// ```
 #[derive(Clone)]
 pub struct Foreground {
-    pub(crate) text: Text,
+    pub(crate) text: Option<Text>,
     pub(crate) alignment: Alignment,
     pub(crate) yoffset: Option<i16>,
 }
 
 impl Foreground {
-    /// Create a new Foreground.
-    pub fn new<T: Into<Text>>(text: T) -> Self {
+    /// Create a new empty Foreground.
+    pub fn new() -> Self {
         Foreground {
+            text: None,
             yoffset: None,
-            text: text.into(),
             alignment: Alignment::CENTER,
         }
+    }
+
+    /// Set the text of the foreground.
+    ///
+    /// **Default:** No text.
+    pub fn text(mut self, text: Text) -> Self {
+        self.text = Some(text);
+        self
     }
 
     /// Set the alignment of the text inside the component.
@@ -46,5 +57,21 @@ impl Foreground {
     pub fn yoffset(mut self, yoffset: i16) -> Self {
         self.yoffset = Some(yoffset);
         self
+    }
+}
+
+impl From<Text> for Foreground {
+    fn from(text: Text) -> Foreground {
+        Foreground {
+            yoffset: None,
+            text: Some(text),
+            alignment: Alignment::CENTER,
+        }
+    }
+}
+
+impl Default for Foreground {
+    fn default() -> Self {
+        Self::new()
     }
 }

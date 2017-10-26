@@ -25,8 +25,8 @@ use width::Width;
 ///     }
 ///
 ///     // Do not print any text
-///     fn foreground(&self) -> Option<Foreground> {
-///         None
+///     fn foreground(&self) -> Foreground {
+///         Foreground::new()
 ///     }
 ///
 ///     // Put this element at the center of the bar
@@ -76,9 +76,9 @@ pub trait Component {
 
     /// The text of the component.
     ///
-    /// **Default:** `None`, no foreground.
-    fn foreground(&self) -> Option<Foreground> {
-        None
+    /// **Default:** No foreground.
+    fn foreground(&self) -> Foreground {
+        Foreground::new()
     }
 
     /// The alignment of the component.

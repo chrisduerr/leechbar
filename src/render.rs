@@ -21,14 +21,7 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
     // Get new text and background from component
     let width = component.width();
     let background = component.background();
-    let mut foreground = component.foreground();
-
-    // Set yoffset of foreground if it is none
-    if let Some(ref mut foreground) = foreground {
-        if foreground.yoffset.is_none() {
-            foreground.yoffset = Some(bar.text_yoffset);
-        }
-    }
+    let foreground = component.foreground();
 
     // Calculate width and height of element
     let h = bar.geometry.height;
@@ -51,9 +44,7 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
         let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
 
         // Mark dirty if background or foreground changed
-        let new_fg_cache = foreground
-            .as_ref()
-            .map_or(BarComponentCache::new(), |fg| BarComponentCache::new_fg(fg));
+        let new_fg_cache = BarComponentCache::new_fg(&foreground);
         let new_bg_cache = BarComponentCache::new_bg(&background);
         let old_fg_cache = components[comp_index].fg_cache;
         let old_bg_cache = components[comp_index].bg_cache;
@@ -103,7 +94,7 @@ fn update_picture(
     bar: &Bar,
     component: &mut BarComponent,
     background: &Background,
-    foreground: &Option<Foreground>,
+    foreground: &Foreground,
     w: u16,
     h: u16,
 ) -> Result<()> {
@@ -133,9 +124,9 @@ fn update_picture(
     }
 
     // Render the foreground text
-    if let Some(ref foreground) = *foreground {
+    if let Some(ref text) = foreground.text {
         let yoffset = foreground.yoffset.unwrap_or(bar.text_yoffset);
-        render_picture(bar, pict, w, &foreground.text.arc, foreground.alignment, yoffset)?
+        render_picture(bar, pict, w, &text.arc, foreground.alignment, yoffset)?
     }
 
     // Free pixmap
@@ -262,7 +253,7 @@ fn calculate_width(
     bar: &Bar,
     width: Width,
     background: &Background,
-    foreground: &Option<Foreground>,
+    foreground: &Foreground,
 ) -> u16 {
     // Just return fixed if it's some
     if let Some(fixed) = width.fixed {
@@ -281,10 +272,10 @@ fn calculate_width(
     }
 
     // Set to text width if it isn't smaller than min
-    if let Some(ref foreground) = *foreground {
+    if let Some(ref text) = foreground.text {
         // Check if text width should be ignored
         if !width.ignore_foreground {
-            w = cmp::max(w, foreground.text.arc.geometry.width);
+            w = cmp::max(w, text.arc.geometry.width);
         }
     }
 

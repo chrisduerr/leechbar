@@ -53,12 +53,6 @@ impl Image {
     }
 }
 
-impl<'a> From<&'a Image> for Image {
-    fn from(image: &Image) -> Image {
-        image.clone()
-    }
-}
-
 // Convert a DynamicImage to a raw image
 pub fn convert_image(image: &DynamicImage) -> Vec<u8> {
     let mut image = image.to_rgba();

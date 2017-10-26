@@ -39,8 +39,7 @@
 //! bar. This is a little more complicated, because you need to implement the [`Component`] trait.
 //!
 //! ```rust,no_run
-//! use leechbar::{Bar, BarBuilder, Component, Text, Background, Foreground, Alignment, Width};
-//! use std::time::Duration;
+//! use leechbar::{Bar, BarBuilder, Component, Text, Foreground};
 //!
 //! struct MyComponent {
 //!     bar: Bar,
@@ -49,9 +48,8 @@
 //! // You can define your own custom components like this
 //! impl Component for MyComponent {
 //!     // Print "Hello, World!" as text
-//!     fn foreground(&self) -> Option<Foreground> {
-//!         let text = Text::new(&self.bar, "Hello, World", None, None).unwrap();
-//!         Some(Foreground::new(text))
+//!     fn foreground(&self) -> Foreground {
+//!         Text::new(&self.bar, "Hello, World", None, None).unwrap().into()
 //!     }
 //! }
 //!
