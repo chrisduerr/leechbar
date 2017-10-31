@@ -157,11 +157,7 @@ impl Bar {
                 }
 
                 match component.timeout() {
-                    Some(timeout) => if let Some(duration) = timeout.duration {
-                        thread::sleep(duration);
-                    } else {
-                        let _ = timeout.receiver.unwrap().recv();
-                    },
+                    Some(timeout) => thread::sleep(timeout),
                     None => break,
                 };
             }

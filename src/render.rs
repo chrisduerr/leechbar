@@ -43,12 +43,16 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
         // Get the index of the current component
         let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
 
-        // Mark dirty if background or foreground changed
+        // Update if background or foreground changed
         let new_fg_cache = BarComponentCache::new_fg(&foreground);
         let new_bg_cache = BarComponentCache::new_bg(&background);
         let old_fg_cache = components[comp_index].fg_cache;
         let old_bg_cache = components[comp_index].bg_cache;
-        if new_bg_cache != old_bg_cache || new_fg_cache != old_fg_cache {
+        let old_width = components[comp_index].geometry.width;
+        let old_height = components[comp_index].geometry.height;
+        if new_bg_cache != old_bg_cache || new_fg_cache != old_fg_cache || old_width != w
+            || old_height != h
+        {
             debug!("Recomposing {}…", id);
             update_picture(bar, &mut components[comp_index], &background, &foreground, w, h)?;
         }
@@ -98,6 +102,11 @@ fn update_picture(
     w: u16,
     h: u16,
 ) -> Result<()> {
+    // Don't update the pixmap when it's empty
+    if w == 0 || h == 0 {
+        return Ok(());
+    }
+
     // Shorten variable names
     let (conn, gc, win) = (&bar.conn, bar.gcontext, bar.window);
 
@@ -126,7 +135,7 @@ fn update_picture(
     // Render the foreground text
     if let Some(ref text) = foreground.text {
         let yoffset = foreground.yoffset.unwrap_or(bar.text_yoffset);
-        render_picture(bar, pict, w, &text.arc, foreground.alignment, yoffset)?
+        render_picture(bar, pict, w, &text.arc, foreground.alignment, yoffset)?;
     }
 
     // Free pixmap

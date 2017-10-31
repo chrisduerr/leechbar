@@ -1,7 +1,7 @@
 use foreground::Foreground;
 use background::Background;
 use alignment::Alignment;
-use timeout::Timeout;
+use std::time::Duration;
 use width::Width;
 
 /// Trait for creating custom components.
@@ -13,7 +13,8 @@ use width::Width;
 /// # Examples
 ///
 /// ```rust
-/// use leechbar::{Component, Background, Foreground, Alignment, Width, Timeout};
+/// use leechbar::{Component, Background, Foreground, Alignment, Width};
+/// use std::time::Duration;
 ///
 /// struct MyComponent;
 ///
@@ -35,7 +36,7 @@ use width::Width;
 ///     }
 ///
 ///     // Do this only once
-///     fn timeout(&self) -> Option<Timeout> {
+///     fn timeout(&self) -> Option<Duration> {
 ///         None
 ///     }
 ///
@@ -60,6 +61,9 @@ pub trait Component {
     ///
     /// This method's return value determines if the component should be redrawn in this cycle,
     /// returning `false` instead of redrawing the same content will save resources.
+    ///
+    /// Blocking inside the update method is an option for event-based updates. This will not block
+    /// the bar from redrawing other components.
     ///
     /// **Default:** `true`, component will always be redrawn.
     fn update(&mut self) -> bool {
@@ -99,7 +103,7 @@ pub trait Component {
     /// Use `None` for drawing this component once.
     ///
     /// **Default:** `None`, draw component once.
-    fn timeout(&self) -> Option<Timeout> {
+    fn timeout(&self) -> Option<Duration> {
         None
     }
 }

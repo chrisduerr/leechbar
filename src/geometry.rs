@@ -1,5 +1,5 @@
 // Geometry of the bar
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Geometry {
     pub x: i16,
     pub y: i16,

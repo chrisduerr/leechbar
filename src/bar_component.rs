@@ -58,7 +58,6 @@ impl Default for BarComponentCache {
 // A component currently stored in the bar
 pub struct BarComponent {
     pub id: u32,
-    pub dirty: bool,
     pub picture: u32,
     pub geometry: Geometry,
     pub bg_cache: BarComponentCache,
@@ -72,7 +71,6 @@ impl BarComponent {
         BarComponent {
             id,
             picture,
-            dirty: false,
             geometry: Geometry::default(),
             bg_cache: BarComponentCache::new(),
             fg_cache: BarComponentCache::new(),
@@ -105,7 +103,7 @@ impl BarComponent {
         // Copy over background
         let op = xcb::render::PICT_OP_OVER as u8;
 
-        // Copy teh background of the bar to that picture
+        // Copy the background of the bar to that picture
         xtry!(@render composite_checked, &bar.conn, op, bar.background, 0, tmp_pict, x, 0, 0, 0, 0, 0, w, h);
 
         // Copy the component to the temporary picture
