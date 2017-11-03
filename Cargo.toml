@@ -19,8 +19,9 @@ cairo-sys-rs = { version = "0.4.0", features = ["xcb"] }
 cairo-rs = { version = "0.2.0", features = ["xcb"] }
 error-chain = "0.11.0"
 pangocairo = "0.2.0"
-pango = "0.2.0"
 image = "0.16.0"
+pango = "0.2.0"
+chan = "0.1.19"
 log = "0.3.8"
 
 [dev-dependencies]

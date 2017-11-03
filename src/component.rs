@@ -1,7 +1,8 @@
+use chan::{self, Receiver};
 use foreground::Foreground;
 use background::Background;
 use alignment::Alignment;
-use std::time::Duration;
+use event::Event;
 use width::Width;
 
 /// Trait for creating custom components.
@@ -13,8 +14,12 @@ use width::Width;
 /// # Examples
 ///
 /// ```rust
+/// # extern crate leechbar;
+/// extern crate chan;
+///
 /// use leechbar::{Component, Background, Foreground, Alignment, Width};
 /// use std::time::Duration;
+/// use std::thread;
 ///
 /// struct MyComponent;
 ///
@@ -35,9 +40,18 @@ use width::Width;
 ///         Alignment::CENTER
 ///     }
 ///
-///     // Do this only once
-///     fn timeout(&self) -> Option<Duration> {
-///         None
+///     // Redraw every 5 seconds
+///     fn redraw_timer(&mut self) -> chan::Receiver<()> {
+///         let (tx, rx) = chan::sync(0);
+///
+///         // Start thread for sending update requests
+///         // Then send the updates every 5 seconds
+///         thread::spawn(move || loop {
+///             thread::sleep(Duration::from_secs(5));
+///             let _ = tx.send(());
+///         });
+///
+///         rx
 ///     }
 ///
 ///     // No width restrictions
@@ -51,7 +65,9 @@ use width::Width;
 ///     }
 /// }
 ///
-/// let component = MyComponent;
+/// fn main() {
+///     let component = MyComponent;
+/// }
 /// ```
 ///
 /// [`Bar::add`]: struct.Bar.html#method.add
@@ -62,12 +78,30 @@ pub trait Component {
     /// This method's return value determines if the component should be redrawn in this cycle,
     /// returning `false` instead of redrawing the same content will save resources.
     ///
-    /// Blocking inside the update method is an option for event-based updates. This will not block
-    /// the bar from redrawing other components.
-    ///
     /// **Default:** `true`, component will always be redrawn.
     fn update(&mut self) -> bool {
         true
+    }
+
+    /// This is called whenever an event occurs that is related to this component.
+    ///
+    /// The return value is used to check if the component is supposed to be redrawn after the
+    /// event has been processed.
+    ///
+    /// **Default:** `false`, do nothing when an event is received.
+    fn event(&mut self, _event: Event) -> bool {
+        false
+    }
+
+    /// This method controls the redraw-rate of the component. Every time the `Receiver` receives
+    /// any message, the component is redrawn. This method is called only once when the component
+    /// is added to the bar, dropping the `Sender` will stop the component from being redrawn
+    /// without removing the current state from the bar.
+    ///
+    /// **Default:** Sender dropped immediately, component is drawn only once.
+    fn redraw_timer(&mut self) -> Receiver<()> {
+        let (_tx, rx) = chan::sync(0);
+        rx
     }
 
     /// The background of the component.
@@ -97,13 +131,5 @@ pub trait Component {
     /// **Default:** No width restrictions.
     fn width(&self) -> Width {
         Width::new()
-    }
-
-    /// The timeout for this component. This is the time between redrawing the component.
-    /// Use `None` for drawing this component once.
-    ///
-    /// **Default:** `None`, draw component once.
-    fn timeout(&self) -> Option<Duration> {
-        None
     }
 }

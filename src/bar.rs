@@ -5,10 +5,12 @@ use std::sync::{Arc, Mutex};
 use component::Component;
 use builder::BarBuilder;
 use geometry::Geometry;
+use event::Event;
 use color::Color;
 use std::thread;
 use error::*;
 use render;
+use chan;
 use util;
 use img;
 
@@ -123,15 +125,40 @@ impl Bar {
                             err!(res, "Unable to redraw component");
                         }
                     }
-                } else {
-                    // TODO: Handle mouse events
-                    debug!("Received event: {}", r);
+                } else if r == xcb::MOTION_NOTIFY {
+                    let event: &xcb::MotionNotifyEvent = unsafe { xcb::cast_event(&event) };
+                    debug!("Mouse moved to {}-{}", event.event_x(), event.event_y());
+                    self.propagate_event(event.into());
+                } else if r == xcb::BUTTON_PRESS {
+                    let event: &xcb::ButtonPressEvent = unsafe { xcb::cast_event(&event) };
+                    debug!("Mouse button {} pressed at {}", event.detail(), event.event_x());
+                    self.propagate_event(event.into());
                 }
             }
         }
     }
 
+    pub fn propagate_event(&self, event: Event) {
+        let x = match event {
+            Event::ClickEvent(ref e) => e.position.x,
+            Event::MotionEvent(ref e) => e.position.x,
+        };
+
+        let components = self.components.lock().unwrap();
+        for component in &(*components) {
+            let geo = component.geometry;
+            if geo.x < x && geo.x as u16 + geo.width > x as u16 {
+                if let Some(ref interrupt) = component.interrupt {
+                    debug!("Event propagated to component {}", component.id);
+                    interrupt.send(event);
+                }
+                break;
+            }
+        }
+    }
+
     /// Add a new component to the bar.
+    #[allow(unused_mut)]
     pub fn add<T: 'static + Component + Send>(&mut self, mut component: T) {
         // Permanent component id
         let id = component.alignment().id(&mut self.component_ids);
@@ -148,6 +175,9 @@ impl Bar {
         // Start bar thread
         let bar = self.clone();
         thread::spawn(move || {
+            // Get the polling receiver from the component
+            let redraw_timer = component.redraw_timer();
+
             // Start component loop
             loop {
                 // Check if component should be redrawn
@@ -156,10 +186,38 @@ impl Bar {
                     err!(res, "Component {}", id);
                 }
 
-                match component.timeout() {
-                    Some(timeout) => thread::sleep(timeout),
-                    None => break,
-                };
+                // Update the interrupt on the component
+                let (tx, rx) = chan::async();
+                {
+                    let mut components = bar.components.lock().unwrap();
+                    let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
+                    components[comp_index].interrupt = Some(tx.clone());
+                }
+
+                // Select between redraw and event receivers
+                // Redraw when requested
+                loop {
+                    chan_select! {
+                        rx.recv() -> event => {
+                            if let Some(event) = event {
+                                debug!("Component {} received event.", id);
+                                if component.event(event) {
+                                    debug!("Component {} requested redraw after event.", id);
+                                    break;
+                                }
+                            }
+                        },
+                        redraw_timer.recv() -> ping => {
+                            if ping.is_some() {
+                                debug!("Component {} requested redraw without event.", id);
+                                break;
+                            } else {
+                                debug!("Component {} disconnected.", id);
+                                return;
+                            }
+                        },
+                    }
+                }
             }
         });
     }
@@ -337,7 +395,8 @@ fn create_window(
             (xcb::CW_BACK_PIXEL, background_color.into()),
             (
                 xcb::CW_EVENT_MASK,
-                xcb::EVENT_MASK_EXPOSURE | xcb::EVENT_MASK_KEY_PRESS | xcb::EVENT_MASK_ENTER_WINDOW,
+                xcb::EVENT_MASK_EXPOSURE | xcb::EVENT_MASK_POINTER_MOTION
+                    | xcb::EVENT_MASK_BUTTON_PRESS,
             ),
             (xcb::CW_OVERRIDE_REDIRECT, 0),
         ],

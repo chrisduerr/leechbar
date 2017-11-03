@@ -1,3 +1,4 @@
+extern crate chan;
 extern crate env_logger;
 extern crate image;
 extern crate leechbar;
@@ -5,6 +6,7 @@ extern crate leechbar;
 use leechbar::{Alignment, Background, Bar, BarBuilder, Color, Component, Foreground, Image, Text};
 use std::time::Duration;
 use std::ops::Range;
+use std::thread;
 
 struct ImageComponent {
     bar: Bar,
@@ -36,8 +38,16 @@ impl Component for ImageComponent {
         Text::new(&self.bar, &content, None, None).unwrap().into()
     }
 
-    fn timeout(&self) -> Option<Duration> {
-        Some(Duration::from_millis(self.timeout))
+    fn redraw_timer(&mut self) -> chan::Receiver<()> {
+        let (tx, rx) = chan::sync(0);
+
+        let timeout = Duration::from_millis(self.timeout);
+        thread::spawn(move || loop {
+            thread::sleep(timeout);
+            tx.send(());
+        });
+
+        rx
     }
 }
 

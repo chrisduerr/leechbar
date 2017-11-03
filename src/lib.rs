@@ -89,6 +89,8 @@
 extern crate cairo;
 extern crate cairo_sys;
 #[macro_use]
+extern crate chan;
+#[macro_use]
 extern crate error_chain;
 extern crate image;
 #[macro_use]
@@ -109,6 +111,7 @@ mod geometry;
 mod picture;
 mod builder;
 mod render;
+mod event;
 mod width;
 mod color;
 mod util;
@@ -116,6 +119,7 @@ mod text;
 mod bar;
 mod img;
 
+pub use event::{ClickEvent, Event, MotionEvent, MouseButton};
 pub use foreground::Foreground;
 pub use background::Background;
 pub use component::Component;

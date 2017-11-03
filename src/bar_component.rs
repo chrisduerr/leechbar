@@ -3,7 +3,9 @@ use foreground::Foreground;
 use alignment::Alignment;
 use geometry::Geometry;
 use std::sync::Arc;
+use chan::Sender;
 use color::Color;
+use event::Event;
 use bar::Bar;
 use error::*;
 use xcb;
@@ -60,6 +62,7 @@ pub struct BarComponent {
     pub id: u32,
     pub picture: u32,
     pub geometry: Geometry,
+    pub interrupt: Option<Sender<Event>>,
     pub bg_cache: BarComponentCache,
     pub fg_cache: BarComponentCache,
 }
@@ -71,6 +74,7 @@ impl BarComponent {
         BarComponent {
             id,
             picture,
+            interrupt: None,
             geometry: Geometry::default(),
             bg_cache: BarComponentCache::new(),
             fg_cache: BarComponentCache::new(),
