@@ -12,7 +12,7 @@ use bar;
 ///
 /// Basic usage:
 ///
-/// ```rust
+/// ```rust,no_run
 /// use leechbar::{BarBuilder, Color};
 ///
 /// // All method calls that take parameters are optional
@@ -42,6 +42,14 @@ pub struct BarBuilder {
 
 impl BarBuilder {
     /// Create a new instance of the `BarBuilder` with default parameters.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::BarBuilder;
+    ///
+    /// let builder = BarBuilder::new();
+    /// ```
     pub fn new() -> Self {
         BarBuilder::default()
     }
@@ -49,6 +57,15 @@ impl BarBuilder {
     /// Change the default foreground color.
     ///
     /// **Default:** White (255, 255, 255, 255)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::{BarBuilder, Color};
+    ///
+    /// let color = Color::new(255, 0, 255, 0);
+    /// let builder = BarBuilder::new().foreground_color(color);
+    /// ```
     pub fn foreground_color(mut self, color: Color) -> Self {
         self.foreground_color = color;
         self
@@ -57,6 +74,15 @@ impl BarBuilder {
     /// Change the default background color.
     ///
     /// **Default:** Black (0, 0, 0, 255)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::{BarBuilder, Color};
+    ///
+    /// let color = Color::new(255, 0, 255, 0);
+    /// let builder = BarBuilder::new().background_color(color);
+    /// ```
     pub fn background_color(mut self, color: Color) -> Self {
         self.background_color = color;
         self
@@ -69,6 +95,19 @@ impl BarBuilder {
     /// specified bar geometry.
     ///
     /// **Default:** No background image.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # extern crate leechbar;
+    /// extern crate image;
+    /// use leechbar::BarBuilder;
+    ///
+    /// # fn main () {
+    /// let image = image::open("./img.png").unwrap();
+    /// let builder = BarBuilder::new().background_image(image);
+    /// # }
+    /// ```
     pub fn background_image(mut self, image: DynamicImage) -> Self {
         self.background_image = Some(image);
         self
@@ -79,6 +118,14 @@ impl BarBuilder {
     /// This name is used by your Window Manager.
     ///
     /// **Default:** `leechbar`
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::BarBuilder;
+    ///
+    /// let builder = BarBuilder::new().name("Leechbar");
+    /// ```
     pub fn name<T: Into<String>>(mut self, name: T) -> Self {
         self.name = name.into();
         self
@@ -89,6 +136,14 @@ impl BarBuilder {
     /// This font is used for each block unless manually overwritten.
     ///
     /// **Default:** Default pango font.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::BarBuilder;
+    ///
+    /// let builder = BarBuilder::new().font("Fira Sans Medium 13");
+    /// ```
     pub fn font<T: Into<String>>(mut self, font: T) -> Self {
         self.font = Some(font.into());
         self
@@ -99,6 +154,14 @@ impl BarBuilder {
     /// This specifies the vertical height used in pixels.
     ///
     /// **Default:** `30`
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::BarBuilder;
+    ///
+    /// let builder = BarBuilder::new().height(25);
+    /// ```
     pub fn height(mut self, height: u16) -> Self {
         self.height = height;
         self
@@ -112,16 +175,33 @@ impl BarBuilder {
     /// If not specified the primary output is selected.
     ///
     /// **Default:** Primary output.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::BarBuilder;
+    ///
+    /// let builder = BarBuilder::new().output("DVI-0");
+    /// ```
     pub fn output<T: Into<String>>(mut self, output: T) -> Self {
         self.output = Some(output.into());
         self
     }
 
     /// Change the default vertical text offset of the bar.
+    /// Positive values move the text downwards.
     ///
     /// This is overridden by the component's vertical offset if present.
     ///
     /// **Default:** `0`
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::BarBuilder;
+    ///
+    /// let builder = BarBuilder::new().text_yoffset(-4);
+    /// ```
     pub fn text_yoffset(mut self, text_yoffset: i16) -> Self {
         self.text_yoffset = text_yoffset;
         self
@@ -130,6 +210,14 @@ impl BarBuilder {
     /// Spawn the bar with the currently configured settings.
     ///
     /// This creates a window and registers it as a bar on Xorg.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use leechbar::BarBuilder;
+    ///
+    /// let bar = BarBuilder::new().spawn().unwrap();
+    /// ```
     pub fn spawn(self) -> Result<bar::Bar> {
         let bar = bar::Bar::new(self)?;
         Ok(bar)

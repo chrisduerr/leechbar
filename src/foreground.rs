@@ -27,6 +27,14 @@ pub struct Foreground {
 
 impl Foreground {
     /// Create a new empty Foreground.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Foreground;
+    ///
+    /// let fg = Foreground::new();
+    /// ```
     pub fn new() -> Self {
         Foreground {
             text: None,
@@ -38,6 +46,16 @@ impl Foreground {
     /// Set the text of the foreground.
     ///
     /// **Default:** No text.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use leechbar::{Foreground, Text, BarBuilder};
+    ///
+    /// let bar = BarBuilder::new().spawn().unwrap();
+    /// let text = Text::new(&bar, "Text :)", None, None).unwrap();
+    /// let fg = Foreground::new().text(text);
+    /// ```
     pub fn text(mut self, text: Text) -> Self {
         self.text = Some(text);
         self
@@ -46,6 +64,14 @@ impl Foreground {
     /// Set the alignment of the text inside the component.
     ///
     /// **Default:** [`Alignment::CENTER`](enum.Alignment.html#variant.CENTER)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::{Foreground, Alignment};
+    ///
+    /// let fg = Foreground::new().alignment(Alignment::RIGHT);
+    /// ```
     pub fn alignment(mut self, alignment: Alignment) -> Self {
         self.alignment = alignment;
         self
@@ -54,6 +80,12 @@ impl Foreground {
     /// Offset the text vertically. Increasing this offset, moves the text down from the center.
     ///
     /// **Default:** Bar's vertical text offset.
+    ///
+    /// ```rust
+    /// use leechbar::Foreground;
+    ///
+    /// let fg = Foreground::new().yoffset(-3);
+    /// ```
     pub fn yoffset(mut self, yoffset: i16) -> Self {
         self.yoffset = Some(yoffset);
         self

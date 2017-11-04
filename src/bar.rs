@@ -15,6 +15,18 @@ use util;
 use img;
 
 /// The main bar.
+///
+/// # Examples
+///
+/// To create a bar you use the [`BarBuilder`](struct.BarBuilder.html).
+///
+/// This is the easiest way to get started:
+///
+/// ```rust,no_run
+/// use leechbar::BarBuilder;
+///
+/// let bar = BarBuilder::new().spawn().unwrap();
+/// ```
 #[derive(Clone)]
 pub struct Bar {
     pub(crate) conn: Arc<xcb::Connection>,
@@ -103,6 +115,15 @@ impl Bar {
     /// Start the event loop of the bar. This handles all X.Org events and is blocking.
     ///
     /// It **must** be called after adding all your components.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use leechbar::BarBuilder;
+    ///
+    /// let bar = BarBuilder::new().spawn().unwrap();
+    /// bar.start_event_loop();
+    /// ```
     pub fn start_event_loop(&self) {
         info!("Started event loop");
         loop {
@@ -138,7 +159,7 @@ impl Bar {
         }
     }
 
-    pub fn propagate_event(&self, event: Event) {
+    fn propagate_event(&self, event: Event) {
         let x = match event {
             Event::ClickEvent(ref e) => e.position.x,
             Event::MotionEvent(ref e) => e.position.x,
@@ -158,6 +179,18 @@ impl Bar {
     }
 
     /// Add a new component to the bar.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use leechbar::{BarBuilder, Component};
+    ///
+    /// struct MyComponent;
+    /// impl Component for MyComponent {}
+    ///
+    /// let mut bar = BarBuilder::new().spawn().unwrap();
+    /// bar.add(MyComponent);
+    /// ```
     #[allow(unused_mut)]
     pub fn add<T: 'static + Component + Send>(&mut self, mut component: T) {
         // Permanent component id

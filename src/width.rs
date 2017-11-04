@@ -28,6 +28,14 @@ pub struct Width {
 
 impl Width {
     /// Create a new width without any size restrictions.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Width;
+    ///
+    /// let width = Width::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             fixed: None,
@@ -39,18 +47,42 @@ impl Width {
     }
 
     /// Set the component to a fixed with. This overrides min, max, background and text width.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Width;
+    ///
+    /// let width = Width::new().fixed(100);
+    /// ```
     pub fn fixed(mut self, fixed: u16) -> Self {
         self.fixed = Some(fixed);
         self
     }
 
     /// Set the minimum width of a component.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Width;
+    ///
+    /// let width = Width::new().min(100);
+    /// ```
     pub fn min(mut self, min: u16) -> Self {
         self.min = min;
         self
     }
 
     /// Set the maximum width of a component.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Width;
+    ///
+    /// let width = Width::new().max(100);
+    /// ```
     pub fn max(mut self, max: u16) -> Self {
         self.max = max;
         self
@@ -58,6 +90,14 @@ impl Width {
 
     /// When this is set, the width of the background is ignored.
     /// It is useful if you want to fit a background image to the width of the text.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Width;
+    ///
+    /// let width = Width::new().ignore_background();
+    /// ```
     pub fn ignore_background(mut self) -> Self {
         self.ignore_background = true;
         self
@@ -66,6 +106,14 @@ impl Width {
     /// When this is set, the width of the foreground is ignored.
     /// It is useful if you want to fit text to the width of the background. This will usually
     /// lead to text being cut off.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Width;
+    ///
+    /// let width = Width::new().ignore_foreground();
+    /// ```
     pub fn ignore_foreground(mut self) -> Self {
         self.ignore_foreground = true;
         self

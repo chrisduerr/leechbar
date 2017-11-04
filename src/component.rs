@@ -8,66 +8,18 @@ use width::Width;
 /// Trait for creating custom components.
 ///
 /// This trait is used for the [`Bar::add`] method. You can use it to implement custom components
-/// that change at runtime. Each method takes `&mut self` and is called whenever the component
-/// redraws, this allows mutating the struct of the component at runtime.
+/// that change at runtime.
 ///
 /// # Examples
 ///
-/// ```rust
-/// # extern crate leechbar;
-/// extern crate chan;
+/// To create a component you only have to create a struct that implements the `Component` trait.
+/// This is how you create an empty component:
 ///
-/// use leechbar::{Component, Background, Foreground, Alignment, Width};
-/// use std::time::Duration;
-/// use std::thread;
+/// ```rust
+/// use leechbar::Component;
 ///
 /// struct MyComponent;
-///
-/// // You can define your own custom components like this
-/// impl Component for MyComponent {
-///     // No background image
-///     fn background(&self) -> Background {
-///         Background::new()
-///     }
-///
-///     // Do not print any text
-///     fn foreground(&self) -> Foreground {
-///         Foreground::new()
-///     }
-///
-///     // Put this element at the center of the bar
-///     fn alignment(&self) -> Alignment {
-///         Alignment::CENTER
-///     }
-///
-///     // Redraw every 5 seconds
-///     fn redraw_timer(&mut self) -> chan::Receiver<()> {
-///         let (tx, rx) = chan::sync(0);
-///
-///         // Start thread for sending update requests
-///         // Then send the updates every 5 seconds
-///         thread::spawn(move || loop {
-///             thread::sleep(Duration::from_secs(5));
-///             let _ = tx.send(());
-///         });
-///
-///         rx
-///     }
-///
-///     // No width restrictions
-///     fn width(&self) -> Width {
-///         Width::new()
-///     }
-///
-///     // Always redraw component
-///     fn update(&mut self) -> bool {
-///         true
-///     }
-/// }
-///
-/// fn main() {
-///     let component = MyComponent;
-/// }
+/// impl Component for MyComponent {}
 /// ```
 ///
 /// [`Bar::add`]: struct.Bar.html#method.add
@@ -79,6 +31,20 @@ pub trait Component {
     /// returning `false` instead of redrawing the same content will save resources.
     ///
     /// **Default:** `true`, component will always be redrawn.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::Component;
+    ///
+    /// struct MyComponent;
+    /// impl Component for MyComponent {
+    ///     // This would never draw anything
+    ///     fn update(&mut self) -> bool {
+    ///         false
+    ///     }
+    /// }
+    /// ```
     fn update(&mut self) -> bool {
         true
     }
@@ -89,6 +55,22 @@ pub trait Component {
     /// event has been processed.
     ///
     /// **Default:** `false`, do nothing when an event is received.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::{Component, Event};
+    ///
+    /// struct MyComponent;
+    /// impl Component for MyComponent {
+    ///     fn event(&mut self, event: Event) -> bool {
+    ///         if let Event::ClickEvent(_) = event {
+    ///             println!("Someone clicked on this component!");
+    ///         }
+    ///         false
+    ///     }
+    /// }
+    /// ```
     fn event(&mut self, _event: Event) -> bool {
         false
     }
@@ -99,6 +81,32 @@ pub trait Component {
     /// without removing the current state from the bar.
     ///
     /// **Default:** Sender dropped immediately, component is drawn only once.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # extern crate leechbar;
+    /// extern crate chan;
+    /// use leechbar::Component;
+    /// use std::time::Duration;
+    /// use std::thread;
+    ///
+    /// struct MyComponent;
+    /// impl Component for MyComponent {
+    ///     // Redraw this component every 5 seconds
+    ///     fn redraw_timer(&mut self) -> chan::Receiver<()> {
+    ///         let (tx, rx) = chan::sync(0);
+    ///
+    ///         thread::spawn(move || loop {
+    ///             thread::sleep(Duration::from_secs(5));
+    ///             tx.send(());
+    ///         });
+    ///
+    ///         rx
+    ///     }
+    /// }
+    /// # fn main() {}
+    /// ```
     fn redraw_timer(&mut self) -> Receiver<()> {
         let (_tx, rx) = chan::sync(0);
         rx
@@ -108,6 +116,20 @@ pub trait Component {
     /// Use `None` for no background.
     ///
     /// **Default:** No background.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::{Component, Color, Background};
+    ///
+    /// struct MyComponent;
+    /// impl Component for MyComponent {
+    ///     // Fixed pink background color
+    ///     fn background(&self) -> Background {
+    ///         Color::new(255, 0, 255, 255).into()
+    ///     }
+    /// }
+    /// ```
     fn background(&self) -> Background {
         Background::new()
     }
@@ -115,6 +137,23 @@ pub trait Component {
     /// The text of the component.
     ///
     /// **Default:** No foreground.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::{Bar, Component, Foreground, Text};
+    ///
+    /// struct MyComponent {
+    ///     bar: Bar,
+    /// }
+    ///
+    /// impl Component for MyComponent {
+    ///     // Fixed "Hello, World!" text
+    ///     fn foreground(&self) -> Foreground {
+    ///         Text::new(&self.bar, "Hello, Word!", None, None).unwrap().into()
+    ///     }
+    /// }
+    /// ```
     fn foreground(&self) -> Foreground {
         Foreground::new()
     }
@@ -122,6 +161,19 @@ pub trait Component {
     /// The alignment of the component.
     ///
     /// **Default:** [`Alignment::CENTER`](enum.Alignment.html#variant.CENTER)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::{Component, Alignment};
+    ///
+    /// struct MyComponent;
+    /// impl Component for MyComponent {
+    ///     // Put the component at the right of the bar
+    ///     fn alignment(&self) -> Alignment {
+    ///         Alignment::RIGHT
+    ///     }
+    /// }
     fn alignment(&self) -> Alignment {
         Alignment::CENTER
     }
@@ -129,6 +181,20 @@ pub trait Component {
     /// The width of the component.
     ///
     /// **Default:** No width restrictions.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use leechbar::{Component, Width};
+    ///
+    /// struct MyComponent;
+    /// impl Component for MyComponent {
+    ///     // Fixed 300 pixel width
+    ///     fn width(&self) -> Width {
+    ///         Width::new().fixed(300)
+    ///     }
+    /// }
+    /// ```
     fn width(&self) -> Width {
         Width::new()
     }

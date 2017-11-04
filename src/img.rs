@@ -19,6 +19,20 @@ pub struct Image {
 impl Image {
     /// Create a new image from a
     /// [`DynamicImage`](https://docs.rs/image/0.17.0/image/enum.DynamicImage.html).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # extern crate leechbar;
+    /// extern crate image;
+    /// use leechbar::{Image, BarBuilder};
+    ///
+    /// # fn main() {
+    /// let bar = BarBuilder::new().spawn().unwrap();
+    /// let image = image::open("./my_img.png").unwrap();
+    /// let img = Image::new(&bar, &image).unwrap();
+    /// # }
+    /// ```
     pub fn new(bar: &Bar, image: &DynamicImage) -> Result<Self> {
         let conn = Arc::clone(&bar.conn);
         let (window, gcontext, format32) = (bar.window, bar.gcontext, bar.format32);
