@@ -1,3 +1,7 @@
+// Simple Example
+//
+// This example draws "Hello, World!" and then doesn't redraw anymore.
+
 extern crate env_logger;
 extern crate leechbar;
 
@@ -22,7 +26,7 @@ fn main() {
     let mut bar = BarBuilder::new().spawn().unwrap();
 
     // Create a text for the component
-    // This stores the rendered text in memory and prevents excessive redrawing
+    // Like this it is stored in memory and the `MyComponent` struct does not need `bar`
     let text = Text::new(&bar, "Hello, World!", None, None).unwrap();
 
     // Add an instance of your component to your bar
