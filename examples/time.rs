@@ -3,6 +3,7 @@
 // This example is a simple HH:MM clock.
 
 extern crate chan;
+extern crate env_logger;
 extern crate leechbar;
 extern crate time;
 
@@ -40,18 +41,16 @@ impl Component for Time {
 
         // Check if the time has changed since the last draw
         if content != self.last_content {
-            // Make sure that the time is not empty
-            // Calling `Text::new` with an empty text will return an error
-            self.last_text = if !content.is_empty() {
-                // Update the component's text
-                Some(Text::new(&self.bar, &content, None, None).unwrap())
-            } else {
-                // If the time is empty, don't draw any text
-                None
-            };
+            // Create a new text using X
+            let text = Text::new(&self.bar, &content, None, None);
+            if let Ok(text) = text {
+                // If the creation was successful, add the new text
+                // Otherwise don't change the text
+                self.last_text = Some(text);
 
-            // Update the `last_content` for checking the next time
-            self.last_content = content;
+                // Update the `last_content` for checking the next time
+                self.last_content = content;
+            }
 
             // Redraw after the content has changed
             true
@@ -91,8 +90,11 @@ impl Component for Time {
 }
 
 fn main() {
+    // Start the logger
+    env_logger::init().expect("Unable to start logger");
+
     // Create a new bar
-    let mut bar = BarBuilder::new().spawn().unwrap();
+    let mut bar = BarBuilder::new().spawn().expect("Unable to spawn bar");
 
     // Add an instance of the component to the bar
     let comp = Time::new(bar.clone());

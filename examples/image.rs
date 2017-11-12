@@ -53,7 +53,17 @@ impl Component for ImageComponent {
     // This text is not cached and re-rendered every time
     fn foreground(&self) -> Foreground {
         let content = format!("Hello, World! {}", self.index);
-        Text::new(&self.bar, &content, None, None).unwrap().into()
+
+        // Create the text, this might fail but still require a redraw
+        let text = Text::new(&self.bar, &content, None, None);
+        if let Ok(text) = text {
+            // If everything worked out, draw the text
+            text.into()
+        } else {
+            // It's not possible to abort drawing here, so we draw no text as fallback
+            // Updating in `update` would allow aborting this redraw and keep the last text
+            Foreground::new()
+        }
     }
 
     // Update component every three seconds
@@ -74,15 +84,15 @@ impl Component for ImageComponent {
 
 fn main() {
     // Start the logger
-    env_logger::init().unwrap();
+    env_logger::init().expect("Unable to start logger");
 
     // Select a background image for the bar
-    let image = image::open("./examples/testimages/bg.png").unwrap();
+    let image = image::open("./examples/testimages/bg.png").expect("Unable to find bg image");
     let mut bar = BarBuilder::new()
         .foreground_color(Color::new(0, 0, 0, 255))
         .background_image(image)
         .spawn()
-        .unwrap();
+        .expect("Unable to spawn bar");
 
     // Load images into cache
     let images = load_images(&bar, 0..4);
@@ -107,8 +117,8 @@ fn load_images(bar: &Bar, range: Range<u8>) -> Vec<Image> {
     let mut images = Vec::new();
     for i in range {
         let name = format!("./examples/testimages/image{}.png", i);
-        let image = image::open(&name).unwrap();
-        images.push(Image::new(bar, &image).unwrap());
+        let image = image::open(&name).expect("Unable to find comp image");
+        images.push(Image::new(bar, &image).expect("Unable to create X image"));
     }
     images
 }
