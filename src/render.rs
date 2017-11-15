@@ -266,7 +266,7 @@ fn calculate_width(
 ) -> u16 {
     // Just return fixed if it's some
     if let Some(fixed) = width.fixed {
-        return fixed;
+        return cmp::min(fixed, bar.geometry.width);
     }
 
     // Start with min which defaults to 0
