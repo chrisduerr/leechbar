@@ -1,3 +1,6 @@
+pub mod geometry;
+pub mod color;
+
 use std::sync::Arc;
 use error::*;
 use xcb;

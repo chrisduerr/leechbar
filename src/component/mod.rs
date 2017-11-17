@@ -1,9 +1,18 @@
+pub mod bar_component;
+pub mod foreground;
+pub mod background;
+pub mod alignment;
+pub mod picture;
+pub mod width;
+pub mod text;
+pub mod img;
+
 use chan::{self, Receiver};
-use foreground::Foreground;
-use background::Background;
-use alignment::Alignment;
+use component::foreground::Foreground;
+use component::background::Background;
+use component::alignment::Alignment;
+use component::width::Width;
 use event::Event;
-use width::Width;
 
 /// Trait for creating custom components.
 ///

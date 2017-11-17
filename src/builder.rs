@@ -1,5 +1,5 @@
 use image::DynamicImage;
-use color::Color;
+use util::color::Color;
 use error::*;
 use bar;
 

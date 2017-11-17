@@ -1,4 +1,4 @@
-use geometry::Geometry;
+use util::geometry::Geometry;
 use std::sync::Arc;
 use xcb;
 

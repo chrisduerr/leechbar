@@ -1,6 +1,6 @@
 use image::{DynamicImage, GenericImage, Pixel};
-use geometry::Geometry;
-use picture::Picture;
+use component::picture::Picture;
+use util::geometry::Geometry;
 use std::sync::Arc;
 use error::*;
 use bar::Bar;

@@ -1,10 +1,10 @@
 use cairo::{Context, Format, ImageSurface, Surface};
 use pango::{FontDescription, Layout, LayoutExt};
+use component::picture::Picture;
 use pangocairo::CairoContextExt;
-use geometry::Geometry;
-use picture::Picture;
+use util::geometry::Geometry;
+use util::color::Color;
 use std::sync::Arc;
-use color::Color;
 use cairo_sys;
 use bar::Bar;
 use error::*;

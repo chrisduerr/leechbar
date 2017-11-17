@@ -1,5 +1,5 @@
 use xcb::{ButtonPressEvent, MotionNotifyEvent};
-use geometry::Geometry;
+use util::geometry::Geometry;
 
 /// Event that indicates interaction with the component.
 pub enum Event {

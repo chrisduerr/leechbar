@@ -1,5 +1,5 @@
-use alignment::Alignment;
-use text::Text;
+use component::alignment::Alignment;
+use component::text::Text;
 
 /// Foreground of a component.
 ///

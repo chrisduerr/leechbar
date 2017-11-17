@@ -1,18 +1,17 @@
+use component::bar_component::BarComponent;
 use image::{DynamicImage, GenericImage};
 use xcb::{self, randr, Rectangle};
-use bar_component::BarComponent;
+use component::{img, Component};
+use util::geometry::Geometry;
 use std::sync::{Arc, Mutex};
-use component::Component;
 use builder::BarBuilder;
-use geometry::Geometry;
+use util::color::Color;
 use event::Event;
-use color::Color;
 use std::thread;
 use error::*;
 use render;
 use chan;
 use util;
-use img;
 
 /// The main bar.
 ///

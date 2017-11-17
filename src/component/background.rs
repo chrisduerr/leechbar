@@ -1,6 +1,6 @@
-use alignment::Alignment;
-use color::Color;
-use img::Image;
+use component::alignment::Alignment;
+use component::img::Image;
+use util::color::Color;
 
 /// Background of a component.
 ///

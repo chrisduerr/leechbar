@@ -1,10 +1,10 @@
-use background::Background;
-use foreground::Foreground;
-use alignment::Alignment;
-use geometry::Geometry;
+use component::background::Background;
+use component::foreground::Foreground;
+use component::alignment::Alignment;
+use util::geometry::Geometry;
+use util::color::Color;
 use std::sync::Arc;
 use chan::Sender;
-use color::Color;
 use event::Event;
 use bar::Bar;
 use error::*;
