@@ -45,9 +45,10 @@ pub struct Bar {
 
 impl Bar {
     // Create a new bar
-    pub(crate) fn new(builder: BarBuilder) -> Result<Self> {
+    pub(crate) fn new(builder: BarBuilder) -> ::std::result::Result<Self, BarError> {
         // Connect to the X server
-        let conn = Arc::new(xcb::Connection::connect(None)?.0);
+        let conn = xcb::Connection::connect(None).map_err(|_| BarErrorKind::ConnectionRefused)?;
+        let conn = Arc::new(conn.0);
 
         // Get geometry of the specified display
         let info = screen_info(&conn, builder.output)?;
@@ -58,7 +59,7 @@ impl Bar {
         let window = create_window(&conn, geometry, builder.background_color, name)?;
 
         // Get 24 bit and 32 bit image formats
-        let (format24, format32) = image_formats(&conn)?;
+        let (format24, format32) = image_formats(&conn);
 
         // Create a GC with 32 bit depth
         let gcontext = {
@@ -66,18 +67,18 @@ impl Bar {
             let pix32 = conn.generate_id();
             xcb::create_pixmap_checked(&conn, 32, pix32, window, 1, 1)
                 .request_check()
-                .map_err(|e| ErrorKind::XError(format!("Unable to create GC dummy pixmap: {}", e)))?;
+                .expect("Unable to create GC dummy pixmap");
 
             // Then create a gc from that pixmap
             let gc = conn.generate_id();
             xcb::create_gc_checked(&conn, gc, pix32, &[])
                 .request_check()
-                .map_err(|e| ErrorKind::XError(format!("Unable to create GC: {}", e)))?;
+                .expect("Unable to create GC");
 
             // Free pixmap after creating the gc
             xcb::free_pixmap_checked(&conn, pix32)
                 .request_check()
-                .map_err(|e| ErrorKind::XError(format!("Unable to free GC dummy pixmap: {}", e)))?;
+                .expect("Unable to free GC dummy pixmap");
 
             gc
         };
@@ -86,12 +87,12 @@ impl Bar {
         let window_pict = conn.generate_id();
         xcb::render::create_picture_checked(&conn, window_pict, window, format24, &[])
             .request_check()
-            .map_err(|e| ErrorKind::XError(format!("Unable to create window picture: {}", e)))?;
+            .expect("Unable to create window picture");
 
         // Create background picture
         let (bg_col, bg_img) = (builder.background_color, builder.background_image);
         let background =
-            create_background_picture(&conn, window, gcontext, format32, geometry, bg_col, bg_img)?;
+            create_background_picture(&conn, window, gcontext, format32, geometry, bg_col, bg_img);
 
         // Create an empty skeleton bar
         Ok(Bar {
@@ -278,11 +279,11 @@ impl Bar {
 
 // Get the 24 and 32 bit image formats
 // Response is Result<(format24, format32)>
-fn image_formats(conn: &Arc<xcb::Connection>) -> Result<(u32, u32)> {
+fn image_formats(conn: &Arc<xcb::Connection>) -> (u32, u32) {
     // Query connection for all available formats
     let formats = xcb::render::query_pict_formats(conn)
         .get_reply()
-        .map_err(|e| ErrorKind::XError(format!("Unable to query picture formats: {}", e)))?
+        .expect("Unable to query picture formats")
         .formats();
 
     let mut format24 = None;
@@ -312,8 +313,8 @@ fn image_formats(conn: &Arc<xcb::Connection>) -> Result<(u32, u32)> {
 
     // Error if one of the formats hasn't been found
     match (format24, format32) {
-        (Some(f_24), Some(f_32)) => Ok((f_24.id(), f_32.id())),
-        _ => Err("Unable to find picture formats".into()),
+        (Some(f_24), Some(f_32)) => (f_24.id(), f_32.id()),
+        _ => panic!("Unable to find 32 or 24 depth picture formats"),
     }
 }
 
@@ -321,8 +322,8 @@ fn image_formats(conn: &Arc<xcb::Connection>) -> Result<(u32, u32)> {
 fn screen_info(
     conn: &Arc<xcb::Connection>,
     query_output_name: Option<String>,
-) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
-    let root = util::screen(conn)?.root();
+) -> ::std::result::Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>, BarError> {
+    let root = util::screen(conn).expect("Root screen not found").root();
 
     // Return the default screen when no output is specified
     if query_output_name.is_none() {
@@ -335,7 +336,7 @@ fn screen_info(
     let res_cookie = randr::get_screen_resources(conn, root);
     let res_reply = res_cookie
         .get_reply()
-        .map_err(|e| ErrorKind::XcbScreenResourcesError(e.error_code()))?;
+        .expect("Unable to get screen resources");
 
     // Get all crtcs from the reply
     let crtcs = res_reply.crtcs();
@@ -369,34 +370,35 @@ fn screen_info(
         }
     }
 
-    let error_msg = ["Unable to find output '", &query_output_name, "'"].concat();
-    Err(error_msg.into())
+    Err(BarErrorKind::OutputNotFound.into())
 }
 
 // Get information about the primary output
 fn primary_screen_info(
     conn: &Arc<xcb::Connection>,
     root: u32,
-) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
+) -> ::std::result::Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>, BarError> {
     // Load primary output
     let output_cookie = randr::get_output_primary(conn, root);
     let output_reply = output_cookie
         .get_reply()
-        .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?;
+        .expect("Unable to find primary output");
     let output = output_reply.output();
 
     // Get crtc of primary output
     let output_info_cookie = randr::get_output_info(conn, output, 0);
     let output_info_reply = output_info_cookie
         .get_reply()
-        .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?;
+        .map_err(|_| BarErrorKind::NoPrimaryOutput)?;
     let crtc = output_info_reply.crtc();
 
     // Get info of primary output's crtc
     let crtc_info_cookie = randr::get_crtc_info(conn, crtc, 0);
-    Ok(crtc_info_cookie
-        .get_reply()
-        .map_err(|e| ErrorKind::PrimaryScreenInfoError(e.error_code()))?)
+    Ok(
+        crtc_info_cookie
+            .get_reply()
+            .expect("Unable to get primary output crtc information"),
+    )
 }
 
 // Create a new window and set all required window parameters to make it a bar
@@ -405,9 +407,9 @@ fn create_window(
     geometry: Geometry,
     background_color: Color,
     window_title: &[u8],
-) -> Result<u32> {
+) -> ::std::result::Result<u32, BarError> {
     // Get screen of connection
-    let screen = util::screen(conn)?;
+    let screen = util::screen(conn).expect("Root screen not found");
 
     // Create the window
     let window = conn.generate_id();
@@ -435,11 +437,11 @@ fn create_window(
     );
 
     // Set all window properties
-    set_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK")?;
-    set_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY")?;
-    set_prop!(conn, window, "_NET_WM_DESKTOP", &[-1])?;
-    set_prop!(conn, window, "_NET_WM_NAME", window_title, "UTF8_STRING", 8)?;
-    set_prop!(conn, window, "WM_NAME", window_title, "STRING", 8)?;
+    set_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
+    set_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
+    set_prop!(conn, window, "_NET_WM_DESKTOP", &[-1]);
+    set_prop!(conn, window, "_NET_WM_NAME", window_title, "UTF8_STRING", 8);
+    set_prop!(conn, window, "WM_NAME", window_title, "STRING", 8);
 
     // Request the WM to manage our window.
     xcb::map_window(conn, window);
@@ -458,7 +460,7 @@ fn create_background_picture(
     geometry: Geometry,
     bg_color: Color,
     background_image: Option<DynamicImage>,
-) -> Result<u32> {
+) -> u32 {
     // Create shorthands for geometry
     let (w, h) = (geometry.width, geometry.height);
 
@@ -466,21 +468,20 @@ fn create_background_picture(
     let pix = conn.generate_id();
     xcb::create_pixmap_checked(conn, 32, pix, window, w, h)
         .request_check()
-        .map_err(|e| ErrorKind::XError(format!("Unable to create pixmap for bg image: {}", e)))?;
+        .expect("Unable to create pixmap for bg image");
 
     // Add the color to the pixmap
     // Create a GC with the color
     let col_gc = conn.generate_id();
-    xtry!(
-        create_gc_checked,
-        conn,
-        col_gc,
-        pix,
-        &[(xcb::ffi::xproto::XCB_GC_FOREGROUND, bg_color.into())]
-    );
+    let col = [(xcb::ffi::xproto::XCB_GC_FOREGROUND, bg_color.into())];
+    xcb::create_gc_checked(conn, col_gc, pix, &col)
+        .request_check()
+        .expect("Unable to create background color GC");
 
     // Fill the pixmap with the GC color
-    xtry!(poly_fill_rectangle_checked, conn, pix, col_gc, &[Rectangle::new(0, 0, w, h)]);
+    xcb::poly_fill_rectangle_checked(conn, pix, col_gc, &[Rectangle::new(0, 0, w, h)])
+        .request_check()
+        .expect("Unable to fill background pixmap with GC color");
 
     // Free gc after filling the rectangle
     xcb::free_gc(conn, col_gc);
@@ -497,19 +498,19 @@ fn create_background_picture(
         // Copy image data to pixmap
         xcb::put_image_checked(conn, 2u8, pix, gcontext, w, h, 0, 0, 0, 32, &data)
             .request_check()
-            .map_err(|e| ErrorKind::XError(format!("Unable to copy image to bg pixmap: {}", e)))?;
+            .expect("Unable to copy image to bg pixmap");
     }
 
     // Create new picture from pixmap
     let bg = conn.generate_id();
     xcb::render::create_picture_checked(conn, bg, pix, format32, &[])
         .request_check()
-        .map_err(|e| ErrorKind::XError(format!("Unable to create bg picture: {}", e)))?;
+        .expect("Unable to create bg picture");
 
     // Free the unneeded pixmap
     xcb::free_pixmap_checked(conn, pix)
         .request_check()
-        .map_err(|e| ErrorKind::XError(format!("Unable to free temporary bg pixmap: {}", e)))?;
+        .expect("Unable to free temporary bg pixmap");
 
-    Ok(bg)
+    bg
 }

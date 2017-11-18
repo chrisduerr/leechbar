@@ -1,6 +1,6 @@
 use image::DynamicImage;
 use util::color::Color;
-use error::*;
+use error::BarError;
 use bar;
 
 /// The bar configuration.
@@ -218,7 +218,7 @@ impl BarBuilder {
     ///
     /// let bar = BarBuilder::new().spawn().unwrap();
     /// ```
-    pub fn spawn(self) -> Result<bar::Bar> {
+    pub fn spawn(self) -> Result<bar::Bar, BarError> {
         let bar = bar::Bar::new(self)?;
         Ok(bar)
     }

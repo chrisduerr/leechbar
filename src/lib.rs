@@ -102,7 +102,7 @@ extern crate xcb;
 #[macro_use]
 mod macros;
 mod component;
-pub mod error;
+mod error;
 mod builder;
 mod render;
 mod event;
@@ -113,6 +113,7 @@ pub use event::{ClickEvent, Event, MotionEvent, MouseButton};
 pub use component::foreground::Foreground;
 pub use component::background::Background;
 pub use component::alignment::Alignment;
+pub use error::{BarError, BarErrorKind};
 pub use component::width::Width;
 pub use component::text::Text;
 pub use component::img::Image;

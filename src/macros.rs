@@ -5,7 +5,7 @@ macro_rules! set_prop {
         {
             match xcb::intern_atom($conn, true, $value).get_reply() {
                 Ok(atom) => set_prop!($conn, $window, $name, &[atom.atom()], "ATOM", 32),
-                Err(e) => Err(ErrorKind::XcbPropertyError(e.error_code())),
+                _ => panic!("Unable to set window property"),
             }
         }
     };
@@ -24,9 +24,8 @@ macro_rules! set_prop {
                     let type_atom = type_atom.atom();
                     let mode = xcb::PROP_MODE_REPLACE as u8;
                     xcb::change_property($conn, mode, $window, property, type_atom, $size, $data);
-                    Ok(())
                 },
-                (Err(e), _) | (_, Err(e)) => Err(ErrorKind::XcbPropertyError(e.error_code())),
+                (Err(_), _) | (_, Err(_)) => panic!("Unable to set window property"),
             }
         }
     };

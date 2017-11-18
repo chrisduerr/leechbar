@@ -1,4 +1,7 @@
 //! Error Types.
+
+use std::fmt;
+
 error_chain! {
     foreign_links {
         XcbConnectionError(::xcb::ConnError);
@@ -56,5 +59,62 @@ error_chain! {
             description("Invalid screen depth support"),
             display("The screen does not support 32 bit depth visuals"),
         }
+    }
+}
+
+/// Different types of bar creation errors.
+///
+/// These are all the different errors that can occur during the creation of the bar.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum BarErrorKind {
+    /// Unable to connect to the X.Org server. Please make sure you are running X.Org and not
+    /// Wayland.
+    ConnectionRefused,
+    /// No primary output could be found. This is most likely because you have only one output and
+    /// it is not set as primary.
+    ///
+    /// You can set the `primary` flag on your output using `xrandr --output <OUTPUT> --primary`.
+    /// If this does not work, you can set the output directly using
+    /// [`output`](struct.BarBuilder.html#method.output).
+    NoPrimaryOutput,
+    /// The specified output could not be found. Please make sure the correct name is used. You can
+    /// find out the name of your outputs using `xrandr`.
+    OutputNotFound,
+}
+
+impl BarErrorKind {
+    fn as_str(&self) -> &'static str {
+        match *self {
+            BarErrorKind::ConnectionRefused => "Unable to connect to X.Org",
+            BarErrorKind::NoPrimaryOutput => "Unable to find primary output (see docs)",
+            BarErrorKind::OutputNotFound => "Unable to find specified output",
+        }
+    }
+}
+
+/// Bar creation error.
+///
+/// This error is returned when anything went wrong during the creation of the bar.
+#[derive(Debug)]
+pub struct BarError {
+    /// Different types of bar creation errors.
+    pub kind: BarErrorKind,
+}
+
+impl From<BarErrorKind> for BarError {
+    fn from(kind: BarErrorKind) -> BarError {
+        BarError { kind }
+    }
+}
+
+impl fmt::Display for BarError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}", self.kind.as_str())
+    }
+}
+
+impl ::std::error::Error for BarError {
+    fn description(&self) -> &str {
+        self.kind.as_str()
     }
 }
