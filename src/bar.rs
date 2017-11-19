@@ -150,7 +150,7 @@ impl Bar {
                     let event: &xcb::MotionNotifyEvent = unsafe { xcb::cast_event(&event) };
                     debug!("Mouse moved to {}-{}", event.event_x(), event.event_y());
                     self.propagate_event(event.into());
-                } else if r == xcb::BUTTON_PRESS {
+                } else if r == xcb::BUTTON_PRESS || r == xcb::BUTTON_RELEASE {
                     let event: &xcb::ButtonPressEvent = unsafe { xcb::cast_event(&event) };
                     debug!("Mouse button {} pressed at {}", event.detail(), event.event_x());
                     self.propagate_event(event.into());
@@ -159,6 +159,7 @@ impl Bar {
         }
     }
 
+    // Propagate event to the component
     fn propagate_event(&self, event: Event) {
         let x = match event {
             Event::ClickEvent(ref e) => e.position.x,
@@ -430,7 +431,7 @@ fn create_window(
             (
                 xcb::CW_EVENT_MASK,
                 xcb::EVENT_MASK_EXPOSURE | xcb::EVENT_MASK_POINTER_MOTION
-                    | xcb::EVENT_MASK_BUTTON_PRESS,
+                    | xcb::EVENT_MASK_BUTTON_PRESS | xcb::EVENT_MASK_BUTTON_RELEASE,
             ),
             (xcb::CW_OVERRIDE_REDIRECT, 0),
         ],

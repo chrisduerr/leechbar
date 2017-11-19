@@ -9,10 +9,12 @@ pub enum Event {
     MotionEvent(MotionEvent),
 }
 
+// This implements both button down and up
 impl<'a> From<&'a ButtonPressEvent> for Event {
     fn from(event: &'a ButtonPressEvent) -> Event {
         Event::ClickEvent(ClickEvent {
             button: MouseButton::new(event.detail()),
+            released: if event.state() == 0 { false } else { true },
             position: Geometry::new(event.event_x(), event.event_y(), 0, 0),
         })
     }
@@ -58,6 +60,8 @@ pub struct ClickEvent {
     pub button: MouseButton,
     /// The position releative to the top-left of the component.
     pub position: Geometry,
+    /// Wether this is a button press or release event.
+    pub released: bool,
 }
 
 /// Motion inside the component.
