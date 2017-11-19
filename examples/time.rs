@@ -79,10 +79,12 @@ impl Component for Time {
         let (tx, rx) = chan::sync(0);
 
         // Spawn a new thread that loops forever
-        thread::spawn(move || loop {
-            // Wait 5 seconds, then send an empty message to request a redraw
-            thread::sleep(Duration::from_secs(5));
-            tx.send(());
+        thread::spawn(move || {
+            loop {
+                // Wait 5 seconds, then send an empty message to request a redraw
+                thread::sleep(Duration::from_secs(5));
+                tx.send(());
+            }
         });
 
         rx

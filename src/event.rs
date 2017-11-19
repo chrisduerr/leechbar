@@ -14,7 +14,7 @@ impl<'a> From<&'a ButtonPressEvent> for Event {
     fn from(event: &'a ButtonPressEvent) -> Event {
         Event::ClickEvent(ClickEvent {
             button: MouseButton::new(event.detail()),
-            released: if event.state() == 0 { false } else { true },
+            released: !(event.state() == 0),
             position: Geometry::new(event.event_x(), event.event_y(), 0, 0),
         })
     }

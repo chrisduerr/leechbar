@@ -10,10 +10,10 @@ use bar::Bar;
 use error::*;
 use xcb;
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone)]
 pub struct BarComponentCache {
-    picture: u32,
     yoffset: i16,
+    pictures: Vec<u32>,
     color: Option<Color>,
     alignment: Alignment,
 }
@@ -22,9 +22,9 @@ impl BarComponentCache {
     // Create an empty cache
     pub fn new() -> Self {
         Self {
-            picture: 0,
             yoffset: 0,
             color: None,
+            pictures: Vec::new(),
             alignment: Alignment::CENTER,
         }
     }
@@ -35,7 +35,7 @@ impl BarComponentCache {
             yoffset: 0,
             color: background.color,
             alignment: background.alignment,
-            picture: background.image.as_ref().map_or(0, |i| i.arc.xid),
+            pictures: background.images.iter().map(|i| i.arc.xid).collect(),
         }
     }
 
@@ -46,7 +46,10 @@ impl BarComponentCache {
             alignment: foreground.alignment,
             // Should always be `Some`, just making sure
             yoffset: foreground.yoffset.unwrap_or(0),
-            picture: foreground.text.as_ref().map_or(0, |t| t.arc.xid),
+            pictures: vec![foreground.text.as_ref().map(|t| t.arc.xid)]
+                .iter()
+                .filter_map(|x| *x)
+                .collect(),
         }
     }
 }

@@ -72,10 +72,12 @@ impl Component for ImageComponent {
         let (tx, rx) = chan::sync(0);
 
         // Spawn a new thread that loops forever
-        thread::spawn(move || loop {
-            // Wait 3 seconds, then send an empty message to request a redraw
-            thread::sleep(Duration::from_secs(3));
-            tx.send(());
+        thread::spawn(move || {
+            loop {
+                // Wait 3 seconds, then send an empty message to request a redraw
+                thread::sleep(Duration::from_secs(3));
+                tx.send(());
+            }
         });
 
         rx

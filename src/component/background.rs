@@ -12,45 +12,67 @@ use util::color::Color;
 /// use leechbar::{Alignment, Background, Color};
 ///
 /// let bg = Background::new()
-///                     .color(Color::new(255, 0, 255, 255))
-///                     .alignment(Alignment::CENTER);
+///                     .color(Color::new(255, 0, 255, 255));
 /// ```
 #[derive(Clone)]
 pub struct Background {
+    pub(crate) images: Vec<Image>,
     pub(crate) color: Option<Color>,
-    pub(crate) image: Option<Image>,
     pub(crate) alignment: Alignment,
 }
 
 impl Background {
     /// Create a new empty background
+    ///
+    /// ```rust
+    /// use leechbar::Background;
+    ///
+    /// let bg = Background::new();
+    /// ```
     pub fn new() -> Self {
         Self {
-            image: None,
             color: None,
+            images: Vec::new(),
             alignment: Alignment::CENTER,
         }
     }
 
-    /// Set the background image.
+    /// Add an image to the background. This can be called multiple times to layer images above
+    /// each other.
+    ///
+    /// ```rust,no_run
+    /// # extern crate leechbar;
+    /// extern crate image;
+    /// use leechbar::{Background, Image, BarBuilder};
+    ///
+    /// # fn main() {
+    /// // Create the bar
+    /// let bar = BarBuilder::new().spawn().unwrap();
+    ///
+    /// // Convert our images
+    /// let img1 = image::open("my_image2").unwrap();
+    /// let img2 = image::open("my_image2").unwrap();
+    /// let ximg1 = Image::new(&bar, &img1).unwrap();
+    /// let ximg2 = Image::new(&bar, &img2).unwrap();
+    ///
+    /// // Create a background with our images
+    /// let bg = Background::new().image(ximg1).image(ximg2);
+    /// # }
+    /// ```
     pub fn image<T: Into<Image>>(mut self, image: T) -> Self {
-        self.image = Some(image.into());
+        self.images.push(image.into());
         self
     }
 
     /// Set the background color.
+    ///
+    /// ```rust
+    /// use leechbar::{Background, Color};
+    ///
+    /// let bg = Background::new().color(Color::new(255, 0, 255, 255));
+    /// ```
     pub fn color(mut self, color: Color) -> Self {
         self.color = Some(color);
-        self
-    }
-
-    /// Set the alignment of the background image.
-    ///
-    /// This does nothing for a [`new_color`](#method.new_color) background.
-    ///
-    /// **Default:** [`Alignment::CENTER`](enum.Alignment.html#variant.CENTER)
-    pub fn alignment(mut self, alignment: Alignment) -> Self {
-        self.alignment = alignment;
         self
     }
 }
@@ -59,7 +81,7 @@ impl From<Image> for Background {
     fn from(image: Image) -> Background {
         Background {
             color: None,
-            image: Some(image),
+            images: vec![image],
             alignment: Alignment::CENTER,
         }
     }
@@ -68,8 +90,8 @@ impl From<Image> for Background {
 impl From<Color> for Background {
     fn from(color: Color) -> Background {
         Background {
-            image: None,
             color: Some(color),
+            images: Vec::new(),
             alignment: Alignment::CENTER,
         }
     }

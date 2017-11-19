@@ -43,16 +43,21 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
         // Get the index of the current component
         let comp_index = components.binary_search_by_key(&id, |c| c.id).unwrap_or(0);
 
-        // Update if background or foreground changed
-        let new_fg_cache = BarComponentCache::new_fg(&foreground);
-        let new_bg_cache = BarComponentCache::new_bg(&background);
-        let old_fg_cache = components[comp_index].fg_cache;
-        let old_bg_cache = components[comp_index].bg_cache;
-        let old_width = components[comp_index].geometry.width;
-        let old_height = components[comp_index].geometry.height;
-        if new_bg_cache != old_bg_cache || new_fg_cache != old_fg_cache || old_width != w
-            || old_height != h
-        {
+        // Check if background or foreground changed
+        let component_changed = {
+            // Closure so &components reference is destructed before updating
+            let new_fg_cache = BarComponentCache::new_fg(&foreground);
+            let new_bg_cache = BarComponentCache::new_bg(&background);
+            let old_fg_cache = &components[comp_index].fg_cache;
+            let old_bg_cache = &components[comp_index].bg_cache;
+            let old_width = components[comp_index].geometry.width;
+            let old_height = components[comp_index].geometry.height;
+            new_bg_cache != *old_bg_cache || new_fg_cache != *old_fg_cache || old_width != w
+                || old_height != h
+        };
+
+        // Update the picture if there was a change
+        if component_changed {
             debug!("Recomposing {}…", id);
             update_picture(bar, &mut components[comp_index], &background, &foreground, w, h)?;
         }
@@ -128,8 +133,8 @@ fn update_picture(
     }
 
     // Render the background image if it's not `None`
-    if let Some(ref image) = background.image {
-        render_picture(bar, pict, w, &image.arc, background.alignment, 0)?;
+    for image in &background.images {
+        render_picture(bar, pict, w, &image.arc, image.alignment, 0)?;
     }
 
     // Render the foreground text
@@ -272,8 +277,8 @@ fn calculate_width(
     // Start with min which defaults to 0
     let mut w = width.min;
 
-    // Set to background width if it isn't smaller than min
-    if let Some(ref image) = background.image {
+    // Set the width to the biggest background image
+    for image in &background.images {
         // Check if bg width should be ignored
         if !width.ignore_background {
             w = cmp::max(w, image.arc.geometry.width);

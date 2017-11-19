@@ -1,4 +1,5 @@
 use image::{DynamicImage, GenericImage, Pixel};
+use component::alignment::Alignment;
 use component::picture::Picture;
 use util::geometry::Geometry;
 use std::sync::Arc;
@@ -14,6 +15,7 @@ use xcb;
 #[derive(Clone)]
 pub struct Image {
     pub(crate) arc: Arc<Picture>,
+    pub(crate) alignment: Alignment,
 }
 
 impl Image {
@@ -28,9 +30,14 @@ impl Image {
     /// use leechbar::{Image, BarBuilder};
     ///
     /// # fn main() {
+    /// // Create the bar
     /// let bar = BarBuilder::new().spawn().unwrap();
-    /// let image = image::open("./my_img.png").unwrap();
-    /// let img = Image::new(&bar, &image).unwrap();
+    ///
+    /// // Load the image from disk
+    /// let img = image::open("my_image2").unwrap();
+    ///
+    /// // Convert it to an X.Org image
+    /// let ximg = Image::new(&bar, &img).unwrap();
     /// # }
     /// ```
     pub fn new(bar: &Bar, image: &DynamicImage) -> Result<Self> {
@@ -63,7 +70,39 @@ impl Image {
                 xid: picture,
                 geometry: Geometry::new(0, 0, w, h),
             }),
+            alignment: Alignment::CENTER,
         })
+    }
+
+    /// Set the alignment of the image.
+    ///
+    /// This aligns the image inside the complete component and allows for having different
+    /// alignments with different images layered in a single background.
+    ///
+    /// **Default:** [`Alignment::CENTER`](enum.Alignment.html#variant.CENTER)
+    ///
+    /// ```rust,no_run
+    /// # extern crate leechbar;
+    /// extern crate image;
+    /// use leechbar::{Image, BarBuilder, Alignment};
+    ///
+    /// # fn main() {
+    /// // Create the bar
+    /// let bar = BarBuilder::new().spawn().unwrap();
+    ///
+    /// // Load the image from disk
+    /// let img = image::open("my_image2").unwrap();
+    ///
+    /// // Convert it to an X.Org image
+    /// let ximg = Image::new(&bar, &img).unwrap();
+    ///
+    /// // Set the alignment
+    /// let ximg = ximg.alignment(Alignment::LEFT);
+    /// # }
+    /// ```
+    pub fn alignment(mut self, alignment: Alignment) -> Self {
+        self.alignment = alignment;
+        self
     }
 }
 
