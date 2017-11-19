@@ -160,7 +160,7 @@ impl Bar {
     }
 
     // Propagate event to the component
-    fn propagate_event(&self, event: Event) {
+    fn propagate_event(&self, mut event: Event) {
         let x = match event {
             Event::ClickEvent(ref e) => e.position.x,
             Event::MotionEvent(ref e) => e.position.x,
@@ -170,10 +170,19 @@ impl Bar {
         for component in &(*components) {
             let geo = component.geometry;
             if geo.x < x && geo.x as u16 + geo.width > x as u16 {
-                if let Some(ref interrupt) = component.interrupt {
-                    debug!("Event propagated to component {}", component.id);
-                    interrupt.send(event);
+                // Change X pos to be relative to the component
+                match event {
+                    Event::ClickEvent(ref mut e) => e.position.x -= geo.x + 1,
+                    Event::MotionEvent(ref mut e) => e.position.x -= geo.x + 1,
                 }
+
+                // Propagate the event when there is a listener
+                if let Some(ref interrupt) = component.interrupt {
+                    interrupt.send(event);
+                    debug!("Event propagated to component {}", component.id);
+                }
+
+                // There can only be one match
                 break;
             }
         }
