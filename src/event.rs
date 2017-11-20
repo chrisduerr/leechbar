@@ -32,6 +32,7 @@ impl<'a> From<&'a MotionNotifyEvent> for Event {
 ///
 /// This is used by the [`ClickEvent`](struct.ClickEvent.html) to indicate which mouse button has been
 /// pressed.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum MouseButton {
     Left,
     Middle,
@@ -55,6 +56,7 @@ impl MouseButton {
 /// Mouse click on the component.
 ///
 /// This event indicates that the user has clicked inside the component.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct ClickEvent {
     /// The mouse button which has been used to click on the component.
     pub button: MouseButton,
@@ -67,6 +69,7 @@ pub struct ClickEvent {
 /// Motion inside the component.
 ///
 /// This event indicates that the user has moved the mouse inside the component.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct MotionEvent {
     /// The position the user moved the mouse to.
     pub position: Geometry,

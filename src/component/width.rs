@@ -17,7 +17,7 @@
 /// // No width restrictions
 /// let width = Width::new();
 /// ```
-#[derive(Copy, Clone, Default)]
+#[derive(Default, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Width {
     pub(crate) fixed: Option<u16>,
     pub(crate) min: u16,

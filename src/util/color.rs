@@ -1,5 +1,5 @@
 /// RGBA color structure.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Color {
     pub(crate) red: u8,
     pub(crate) green: u8,

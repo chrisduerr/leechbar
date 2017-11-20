@@ -28,6 +28,7 @@ use bar;
 /// ```
 ///
 /// [`spawn`]: struct.BarBuilder.html#method.spawn
+#[derive(Clone)]
 pub struct BarBuilder {
     pub(crate) background_image: Option<DynamicImage>,
     pub(crate) background_color: Color,

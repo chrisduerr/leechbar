@@ -1,5 +1,5 @@
 /// Alignment inside a container.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Alignment {
     LEFT,
     CENTER,

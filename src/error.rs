@@ -95,7 +95,7 @@ impl BarErrorKind {
 /// Bar creation error.
 ///
 /// This error is returned when anything went wrong during the creation of the bar.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct BarError {
     /// Different types of bar creation errors.
     pub kind: BarErrorKind,
