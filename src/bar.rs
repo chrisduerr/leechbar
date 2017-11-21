@@ -447,6 +447,12 @@ fn create_window(
     );
 
     // Set all window properties
+    let start_x = geometry.x as u32;
+    let end_x = start_x + geometry.width as u32 - 1;
+    let height = geometry.height as u32;
+    let struts = [0, 0, height, 0, 0, 0, 0, 0, start_x, end_x, 0, 0];
+    set_prop!(conn, window, "_NET_WM_STRUT", &struts[0..4]);
+    set_prop!(conn, window, "_NET_WM_STRUT_PARTIAL", &struts);
     set_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
     set_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
     set_prop!(conn, window, "_NET_WM_DESKTOP", &[-1]);
