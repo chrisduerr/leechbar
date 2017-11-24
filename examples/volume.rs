@@ -96,7 +96,12 @@ unsafe extern "C" fn pa_context_callback(pa_context: *mut pa_context, _: *mut li
         PA_CONTEXT_CONNECTING | PA_CONTEXT_AUTHORIZING | PA_CONTEXT_SETTING_NAME => (),
         // If the state is ready, we can subscribe to pulse events
         PA_CONTEXT_READY => {
-            // Setup the callback for the subscriptyon
+            // Set the initial value
+            let pa_operation =
+                pa_context_get_sink_info_list(pa_context, Some(pa_sink_callback), ptr::null_mut());
+            pa_operation_unref(pa_operation);
+
+            // Setup the callback for the subscription
             pa_context_set_subscribe_callback(
                 pa_context,
                 Some(pa_subscription_callback),
