@@ -1,8 +1,8 @@
 //! Leechbar is a crate for creating your own bar/panel/dock.
 //!
 //! The goal of leechbar is to provide a library that allows creating a completely custom bar.
-//! The purpose is not simplicity. So if you don't plan on using more than just simple text, you might
-//! want to look at something like [lemonbar](https://github.com/LemonBoy/bar) instead.
+//! The purpose is not simplicity. So if you don't plan on using more than just simple text,
+//! you might want to look at something like [lemonbar](https://github.com/LemonBoy/bar) instead.
 //!
 //! # Usage
 //!

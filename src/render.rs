@@ -180,7 +180,7 @@ fn render_picture(
     w: u16,
     src_pict: &Arc<Picture>,
     alignment: Alignment,
-    yoffset: i16,
+    yoff: i16,
 ) -> Result<()> {
     // Shorten bar variable names
     let conn = &bar.conn;
@@ -194,7 +194,8 @@ fn render_picture(
 
     // Put image on pixmap
     let op = xcb::render::PICT_OP_OVER as u8;
-    xtry!(@render composite_checked, conn, op, src_pict.xid, 0, tar_pict, 0, 0, 0, 0, x, yoffset, pw, ph);
+    let src_xid = src_pict.xid;
+    xtry!(@render composite_checked, conn, op, src_xid, 0, tar_pict, 0, 0, 0, 0, x, yoff, pw, ph);
 
     Ok(())
 }

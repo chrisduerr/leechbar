@@ -30,8 +30,8 @@ impl<'a> From<&'a MotionNotifyEvent> for Event {
 
 /// Mouse Buttons.
 ///
-/// This is used by the [`ClickEvent`](struct.ClickEvent.html) to indicate which mouse button has been
-/// pressed.
+/// This is used by the [`ClickEvent`](struct.ClickEvent.html) to indicate which
+/// mouse button has been pressed.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum MouseButton {
     Left,

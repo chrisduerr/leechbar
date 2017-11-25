@@ -111,10 +111,12 @@ impl BarComponent {
         let op = xcb::render::PICT_OP_OVER as u8;
 
         // Copy the background of the bar to that picture
-        xtry!(@render composite_checked, &bar.conn, op, bar.background, 0, tmp_pict, x, 0, 0, 0, 0, 0, w, h);
+        let bg = bar.background;
+        xtry!(@render composite_checked, &bar.conn, op, bg, 0, tmp_pict, x, 0, 0, 0, 0, 0, w, h);
 
         // Copy the component to the temporary picture
-        xtry!(@render composite_checked, &bar.conn, op, self.picture, 0, tmp_pict, 0, 0, 0, 0, 0, 0, w, h);
+        let pict = self.picture;
+        xtry!(@render composite_checked, &bar.conn, op, pict, 0, tmp_pict, 0, 0, 0, 0, 0, 0, w, h);
 
         bar.composite_picture(tmp_pict, 0, x, w, h)?;
 
