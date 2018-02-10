@@ -82,7 +82,7 @@ impl Text {
             .ok_or_else(|| ErrorKind::ScreenDepthError(()))?;
         let surface = unsafe {
             Surface::from_raw_full(cairo_sys::cairo_xcb_surface_create(
-                (conn.get_raw_conn() as *mut cairo_sys::xcb_connection_t),
+                conn.get_raw_conn() as *mut cairo_sys::xcb_connection_t,
                 pix,
                 (&mut visualtype.base as *mut xcb::ffi::xcb_visualtype_t)
                     as *mut cairo_sys::xcb_visualtype_t,
