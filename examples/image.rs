@@ -86,7 +86,7 @@ impl Component for ImageComponent {
 
 fn main() {
     // Start the logger
-    env_logger::init().expect("Unable to start logger");
+    env_logger::init();
 
     // Select a background image for the bar
     let image = image::open("./examples/testimages/bg.png").expect("Unable to find bg image");

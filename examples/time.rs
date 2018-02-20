@@ -93,7 +93,7 @@ impl Component for Time {
 
 fn main() {
     // Start the logger
-    env_logger::init().expect("Unable to start logger");
+    env_logger::init();
 
     // Create a new bar
     let mut bar = BarBuilder::new().spawn().expect("Unable to spawn bar");

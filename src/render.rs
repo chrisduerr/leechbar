@@ -59,7 +59,14 @@ pub fn render(bar: &Bar, component: &mut Component, id: u32) -> Result<()> {
         // Update the picture if there was a change
         if component_changed {
             debug!("Recomposing {}…", id);
-            update_picture(bar, &mut components[comp_index], &background, &foreground, w, h)?;
+            update_picture(
+                bar,
+                &mut components[comp_index],
+                &background,
+                &foreground,
+                w,
+                h,
+            )?;
         }
 
         // Clear the difference to old components
@@ -118,7 +125,13 @@ fn update_picture(
     // Create pixmap with empty background
     let pix = conn.generate_id();
     xtry!(create_pixmap_checked, conn, 32, pix, win, w, h);
-    xtry!(poly_fill_rectangle_checked, conn, pix, gc, &[Rectangle::new(0, 0, w, h)]);
+    xtry!(
+        poly_fill_rectangle_checked,
+        conn,
+        pix,
+        gc,
+        &[Rectangle::new(0, 0, w, h)]
+    );
 
     // Free old picture
     let pict = component.picture;
@@ -165,7 +178,13 @@ fn render_color(bar: &Bar, pix: u32, w: u16, h: u16, color: Color) -> Result<()>
     );
 
     // Fill the pixmap with the GC color
-    xtry!(poly_fill_rectangle_checked, conn, pix, col_gc, &[Rectangle::new(0, 0, w, h)]);
+    xtry!(
+        poly_fill_rectangle_checked,
+        conn,
+        pix,
+        col_gc,
+        &[Rectangle::new(0, 0, w, h)]
+    );
 
     // Free gc after filling the rectangle
     xcb::free_gc(conn, col_gc);

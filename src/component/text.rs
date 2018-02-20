@@ -1,10 +1,10 @@
 use cairo::{Context, Format, ImageSurface, Surface};
 use pango::{FontDescription, Layout, LayoutExt};
 use component::picture::Picture;
-use pangocairo::CairoContextExt;
 use util::geometry::Geometry;
 use util::color::Color;
 use std::sync::Arc;
+use pangocairo;
 use cairo_sys;
 use bar::Bar;
 use error::*;
@@ -109,7 +109,7 @@ impl Text {
         context.move_to(0., text_y);
 
         // Display text
-        context.show_pango_layout(&layout);
+        pangocairo::functions::show_layout(&context, &layout);
 
         // Create picture from pixmap
         let picture = conn.generate_id();
@@ -146,7 +146,7 @@ fn text_width(text: &str, font: &FontDescription) -> Result<(u16)> {
 
 // Create a layout with the font and text
 fn layout(context: &Context, text: &str, font: &FontDescription) -> Layout {
-    let layout = context.create_pango_layout();
+    let layout = pangocairo::functions::create_layout(context).expect("Unable to create layout.");
     layout.set_text(text);
     layout.set_font_description(font);
     layout

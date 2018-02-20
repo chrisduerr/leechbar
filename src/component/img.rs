@@ -55,7 +55,20 @@ impl Image {
         let data = convert_image(image);
 
         // Copy image data to pixmap
-        xtry!(put_image_checked, &conn, 2u8, pix, gcontext, w, h, 0, 0, 0, 32, &data);
+        xtry!(
+            put_image_checked,
+            &conn,
+            2u8,
+            pix,
+            gcontext,
+            w,
+            h,
+            0,
+            0,
+            0,
+            32,
+            &data
+        );
 
         // Create new picture from pixmap
         let picture = conn.generate_id();

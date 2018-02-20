@@ -75,7 +75,7 @@
 //! extern crate env_logger;
 //!
 //! fn main() {
-//!     env_logger::init().unwrap();
+//!     env_logger::init();
 //!     // All the cool bar stuff
 //! }
 //! ```
@@ -84,6 +84,9 @@
 //! [`env_logger`]: http://rust-lang-nursery.github.io/log/env_logger
 //! [`BarBuilder`]: struct.BarBuilder.html
 //! [`Component`]: component/trait.Component.html
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
+#![cfg_attr(feature = "clippy", deny(clippy))]
 #![recursion_limit = "1024"]
 
 extern crate cairo;

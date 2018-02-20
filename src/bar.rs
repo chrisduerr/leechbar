@@ -152,7 +152,11 @@ impl Bar {
                     self.propagate_event(event.into());
                 } else if r == xcb::BUTTON_PRESS || r == xcb::BUTTON_RELEASE {
                     let event: &xcb::ButtonPressEvent = unsafe { xcb::cast_event(&event) };
-                    debug!("Mouse button {} pressed at {}", event.detail(), event.event_x());
+                    debug!(
+                        "Mouse button {} pressed at {}",
+                        event.detail(),
+                        event.event_x()
+                    );
                     self.propagate_event(event.into());
                 }
             }
@@ -404,11 +408,9 @@ fn primary_screen_info(
 
     // Get info of primary output's crtc
     let crtc_info_cookie = randr::get_crtc_info(conn, crtc, 0);
-    Ok(
-        crtc_info_cookie
-            .get_reply()
-            .expect("Unable to get primary output crtc information"),
-    )
+    Ok(crtc_info_cookie
+        .get_reply()
+        .expect("Unable to get primary output crtc information"))
 }
 
 // Create a new window and set all required window parameters to make it a bar

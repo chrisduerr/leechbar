@@ -97,11 +97,25 @@ impl BarComponent {
 
         // Create an intermediate pixmap
         let tmp_pix = bar.conn.generate_id();
-        xtry!(create_pixmap_checked, &bar.conn, 32, tmp_pix, bar.window, w, h);
+        xtry!(
+            create_pixmap_checked,
+            &bar.conn,
+            32,
+            tmp_pix,
+            bar.window,
+            w,
+            h
+        );
 
         // Clear content of pixmap
         let rect = &[xcb::Rectangle::new(0, 0, w, h)];
-        xtry!(poly_fill_rectangle_checked, &bar.conn, tmp_pix, bar.gcontext, rect);
+        xtry!(
+            poly_fill_rectangle_checked,
+            &bar.conn,
+            tmp_pix,
+            bar.gcontext,
+            rect
+        );
 
         // Create picture for intermediate pixmap
         let tmp_pict = bar.conn.generate_id();

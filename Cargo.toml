@@ -15,18 +15,19 @@ exclude = [
 
 [dependencies]
 xcb = { version = "0.8.1", features = ["randr", "thread"] }
-cairo-sys-rs = { version = "0.4.0", features = ["xcb"] }
-cairo-rs = { version = "0.2.0", features = ["xcb"] }
+cairo-sys-rs = { version = "0.5.0", features = ["xcb"] }
+cairo-rs = { version = "0.3.0", features = ["xcb"] }
+clippy = { version = "*", optional = true }
 error-chain = "0.11.0"
-pangocairo = "0.2.0"
-image = "0.16.0"
-pango = "0.2.0"
-chan = "0.1.19"
-log = "0.3.8"
+pangocairo = "0.4.1"
+image = "0.18.0"
+pango = "0.3.0"
+chan = "0.1.21"
+log = "0.4.1"
 
 [dev-dependencies]
-libpulse-sys = "0.0.0"
-lazy_static = "0.2.9"
-env_logger = "0.4.3"
-libc = "0.2.33"
-time = "0.1.38"
+libpulse-sys = "1.0.2"
+lazy_static = "1.0.0"
+env_logger = "0.5.3"
+libc = "0.2.36"
+time = "0.1.39"

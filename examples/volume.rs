@@ -7,6 +7,7 @@ extern crate libpulse_sys;
 
 use leechbar::{Bar, BarBuilder, Component, Foreground, Text};
 use std::sync::{Arc, Mutex};
+use std::os::raw::c_void;
 use libpulse_sys::*;
 use std::ptr;
 
@@ -89,72 +90,85 @@ unsafe fn start_volume_listener() {
 }
 
 // Callback when pulseaudio context connected
-unsafe extern "C" fn pa_context_callback(pa_context: *mut pa_context, _: *mut libc::c_void) {
-    // Check the context state
-    match pa_context_get_state(pa_context) {
-        // Ignore these states
-        PA_CONTEXT_CONNECTING | PA_CONTEXT_AUTHORIZING | PA_CONTEXT_SETTING_NAME => (),
-        // If the state is ready, we can subscribe to pulse events
-        PA_CONTEXT_READY => {
-            // Set the initial value
-            let pa_operation =
-                pa_context_get_sink_info_list(pa_context, Some(pa_sink_callback), ptr::null_mut());
-            pa_operation_unref(pa_operation);
+extern "C" fn pa_context_callback(pa_context: *mut pa_context, _: *mut c_void) {
+    unsafe {
+        // Check the context state
+        match pa_context_get_state(pa_context) {
+            // Ignore these states
+            PA_CONTEXT_CONNECTING | PA_CONTEXT_AUTHORIZING | PA_CONTEXT_SETTING_NAME => (),
+            // If the state is ready, we can subscribe to pulse events
+            PA_CONTEXT_READY => {
+                // Set the initial value
+                let pa_operation = pa_context_get_sink_info_list(
+                    pa_context,
+                    Some(pa_sink_callback),
+                    ptr::null_mut(),
+                );
+                pa_operation_unref(pa_operation);
 
-            // Setup the callback for the subscription
-            pa_context_set_subscribe_callback(
-                pa_context,
-                Some(pa_subscription_callback),
-                ptr::null_mut(),
-            );
+                // Setup the callback for the subscription
+                pa_context_set_subscribe_callback(
+                    pa_context,
+                    Some(pa_subscription_callback),
+                    ptr::null_mut(),
+                );
 
-            // Subscribe to all sink events
-            let pa_operation =
-                pa_context_subscribe(pa_context, PA_SUBSCRIPTION_MASK_SINK, None, ptr::null_mut());
-            pa_operation_unref(pa_operation);
-        }
-        _ => {
-            // Abort if connection to pulse was not possible
-            let error = pa_strerror(pa_context_errno(pa_context));
-            pa_context_unref(pa_context);
-            panic!("Pulse connection failure: {:?}", error);
-        }
-    };
+                // Subscribe to all sink events
+                let pa_operation = pa_context_subscribe(
+                    pa_context,
+                    PA_SUBSCRIPTION_MASK_SINK,
+                    None,
+                    ptr::null_mut(),
+                );
+                pa_operation_unref(pa_operation);
+            }
+            _ => {
+                // Abort if connection to pulse was not possible
+                let error = pa_strerror(pa_context_errno(pa_context));
+                pa_context_unref(pa_context);
+                panic!("Pulse connection failure: {:?}", error);
+            }
+        };
+    }
 }
 
 // Sink event callback
-unsafe extern "C" fn pa_subscription_callback(
+extern "C" fn pa_subscription_callback(
     pa_context: *mut pa_context,
-    _: Enum_pa_subscription_event_type,
+    _: pa_subscription_event_type_t,
     _: u32,
-    _: *mut libc::c_void,
+    _: *mut c_void,
 ) {
-    // Get the sink info
-    let pa_operation =
-        pa_context_get_sink_info_list(pa_context, Some(pa_sink_callback), ptr::null_mut());
-    pa_operation_unref(pa_operation);
+    unsafe {
+        // Get the sink info
+        let pa_operation =
+            pa_context_get_sink_info_list(pa_context, Some(pa_sink_callback), ptr::null_mut());
+        pa_operation_unref(pa_operation);
+    }
 }
 
 // Get the volume percentage from a sink
-unsafe extern "C" fn pa_sink_callback(
-    _: *mut Struct_pa_context,
-    pa_sink_info: *const Struct_pa_sink_info,
+extern "C" fn pa_sink_callback(
+    _: *mut pa_context,
+    pa_sink_info: *const pa_sink_info,
     _: i32,
-    _: *mut libc::c_void,
+    _: *mut c_void,
 ) {
-    if !pa_sink_info.is_null() {
-        let vol = if (*pa_sink_info).mute == 1 {
-            // Set volume to 0 if sink is muted
-            0.
-        } else {
-            // Calculate the volume percentage
-            (100. * f64::from(pa_cvolume_avg(&(*pa_sink_info).volume)) / MAX_VOL).round()
-        };
+    unsafe {
+        if !pa_sink_info.is_null() {
+            let vol = if (*pa_sink_info).mute == 1 {
+                // Set volume to 0 if sink is muted
+                0.
+            } else {
+                // Calculate the volume percentage
+                (100. * f64::from(pa_cvolume_avg(&(*pa_sink_info).volume)) / MAX_VOL).round()
+            };
 
-        // Update the global state
-        let mut lock = VOLUME.lock().unwrap();
-        *lock = vol as u8;
-        CHANNEL.0.send(());
+            // Update the global state
+            let mut lock = VOLUME.lock().unwrap();
+            *lock = vol as u8;
+            CHANNEL.0.send(());
+        }
     }
 }
 
